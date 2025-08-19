@@ -13,19 +13,16 @@ There might be hidden states, e.g., registers, previous keystrokes, etc.
 */
 struct VimState: Hashable {
     let buffer: [String]
-    let cursor: Point
-    let mode: VimMode
-
-    struct Point: Hashable {
-        let row: Int
-        let col: Int
-    }
-
-    enum VimMode: Hashable {
-        case normal
-        case insert
-        case visual
-        case command
-        case replace
-    }
+    let cursorRow: Int
+    let cursorCol: Int
+    let mode: String
+    
+    static let COMMON_MODES: [String] = [
+        "n",   // Normal
+        "i",   // Insert
+        "v",   // Visual by character
+        "V",   // Visual by line
+        "c",   // Command-line editing
+        "R"    // Replace
+    ]
 }
