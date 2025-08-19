@@ -7,18 +7,7 @@ Created:  2025-08-19T01:59:11.420Z
 
 import Foundation
 
-protocol NvimClientProtocol {
-    func start() throws
-    func stop()
-    func sendInput(_ input: String) throws
-    func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String]
-    func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws
-    func getCursorPosition(window: Int) throws -> (row: Int, col: Int)
-    func setCursorPosition(window: Int, row: Int, col: Int) throws
-    func getMode() throws -> (mode: String, blocking: Bool)
-}
-
-class NvimClient: NvimClientProtocol {
+class NvimSession: VimSessionProtocol {
     private var nvimProcess: Process?
     private var inputPipe: Pipe?
     private var outputPipe: Pipe?
@@ -56,6 +45,13 @@ class NvimClient: NvimClientProtocol {
         nvimProcess = nil
         inputPipe = nil
         outputPipe = nil
+    }
+
+    func isRunning() -> Bool {
+        return nvimProcess != nil && 
+               inputPipe != nil && 
+               outputPipe != nil && 
+               nvimProcess?.isRunning == true
     }
     
     func sendInput(_ input: String) throws {
@@ -158,27 +154,17 @@ class NvimClient: NvimClientProtocol {
         
         // Use availableData to avoid blocking
         let semaphore = DispatchSemaphore(value: 0)
-        var readError: Error?
         
         ioQueue.async {
-            do {
-                // Try to read available data
-                data = fileHandle.availableData
-                semaphore.signal()
-            } catch {
-                readError = error
-                semaphore.signal()
-            }
+            // Try to read available data
+            data = fileHandle.availableData
+            semaphore.signal()
         }
         
         let result = semaphore.wait(timeout: timeout)
         
         if result == .timedOut {
             throw NvimClientError.communicationFailed("Timeout waiting for nvim response")
-        }
-        
-        if let error = readError {
-            throw NvimClientError.communicationFailed("Read error: \(error)")
         }
         
         if data.isEmpty {

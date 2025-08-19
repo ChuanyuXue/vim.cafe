@@ -8,45 +8,36 @@ Created:  2025-08-18T00:34:23.451Z
 import Foundation
 
 class VimEngine {
-    private let nvimClient: NvimClientProtocol
-    private var currentBuffer: Int = 1
-    
-    init(state: VimState, nvimClient: NvimClientProtocol = NvimClient()) throws {
-        self.nvimClient = nvimClient
-        try nvimClient.start()
-        try setInitialState(state)
-    }
-    
-    deinit {
-        nvimClient.stop()
-    }
-}
+    func execKeystrokes(session: VimSessionProtocol, keystrokes: [String]) throws -> VimState {
+        guard session.isRunning() else {
+            throw VimEngineError.nvimNotRunning
+        }
 
-extension VimEngine {
-    func setInitialState(_ state: VimState) throws {
-        try nvimClient.setBufferLines(buffer: currentBuffer, start: 0, end: -1, lines: state.buffer)
-        try nvimClient.setCursorPosition(window: 0, row: state.cursorRow, col: state.cursorCol)
-    }
-    
-    func execKeystrokes(_ keystrokes: [String]) throws -> VimState {
-        var lastValidState = try getCurrentState() ?? VimState(buffer: [], cursorRow: 0, cursorCol: 0, mode: "n")
+        var lastValidState = try getState(session: session) ?? VimState(buffer: [], cursorRow: 0, cursorCol: 0, mode: "n")
         
         for keystroke in keystrokes {
-            if let currentState = try getCurrentState() {
+            if let currentState = try getState(session: session) {
                 lastValidState = currentState
             }
-            try nvimClient.sendInput(keystroke)
+            try session.sendInput(keystroke)
         }
         
-        return try getCurrentState() ?? lastValidState
+        return try getState(session: session) ?? lastValidState 
+    }
+
+    func execKeystrokes(_ keystrokes: [String]) throws -> VimState {
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
+        return try execKeystrokes(session: session, keystrokes: keystrokes)
     }
     
-    func getCurrentState() throws -> VimState? {
-        let modeInfo = try nvimClient.getMode()
+    func getState(session: VimSessionProtocol) throws -> VimState? {
+        let modeInfo = try session.getMode()
         guard !modeInfo.blocking else { return nil }
         
-        let buffer = try nvimClient.getBufferLines(buffer: currentBuffer, start: 0, end: -1)
-        let cursor = try nvimClient.getCursorPosition(window: 0)
+        let buffer = try session.getBufferLines(buffer: 1, start: 0, end: -1)
+        let cursor = try session.getCursorPosition(window: 0)
         
         return VimState(buffer: buffer, cursorRow: cursor.row, cursorCol: cursor.col, mode: modeInfo.mode)
     }

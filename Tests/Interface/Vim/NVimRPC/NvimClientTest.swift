@@ -1,7 +1,7 @@
 /*
 Author: <Chuanyu> (skewcy@gmail.com)
-NvimClientRealTests.swift (c) 2025
-Desc: Tests for NvimClient using real nvim server
+NvimSessionRealTests.swift (c) 2025
+Desc: Tests for NvimSession using real nvim server
 Created:  2025-08-19T01:59:11.420Z
 */
 
@@ -9,10 +9,10 @@ import Testing
 import Foundation
 @testable import VimCafe
 
-struct NvimClientRealTests {
+struct NvimSessionRealTests {
     
     @Test func realNvimStartAndStop() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         
@@ -27,7 +27,7 @@ struct NvimClientRealTests {
     }
     
     @Test func realNvimBasicInput() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         
@@ -53,7 +53,7 @@ struct NvimClientRealTests {
     }
     
     @Test func realNvimGetMode() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         try await Task.sleep(for: .milliseconds(200))
@@ -77,7 +77,7 @@ struct NvimClientRealTests {
     }
     
     @Test func realNvimBufferOperations() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         try await Task.sleep(for: .milliseconds(200))
@@ -96,7 +96,7 @@ struct NvimClientRealTests {
     }
     
     @Test func realNvimCursorOperations() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         try await Task.sleep(for: .milliseconds(200))
@@ -118,7 +118,7 @@ struct NvimClientRealTests {
     }
     
     @Test func realNvimCompleteWorkflow() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         try await Task.sleep(for: .milliseconds(200))
@@ -150,7 +150,7 @@ struct NvimClientRealTests {
     }
     
     @Test(.timeLimit(.minutes(1))) func nvimProcessDoesNotHang() async throws {
-        let client = NvimClient()
+        let client = NvimSession()
         
         try client.start()
         
@@ -164,11 +164,11 @@ struct NvimClientRealTests {
     }
 }
 
-struct NvimClientDebugTests {
+struct NvimSessionDebugTests {
     
     @Test func debugNvimProcessStartup() async throws {
         
-        let client = NvimClient()
+        let client = NvimSession()
         
         let nvimPath = "/opt/homebrew/bin/nvim"
         let fileManager = FileManager.default
@@ -192,7 +192,7 @@ struct NvimClientDebugTests {
     
     @Test func debugMessagePackCommunication() async throws {
         
-        let client = NvimClient()
+        let client = NvimSession()
         try client.start()
         try await Task.sleep(for: .milliseconds(500))
         
