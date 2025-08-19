@@ -1,0 +1,10 @@
+# Swift Package Manager build artifacts
+.build/
+
+# Xcode
+.DS_Store
+*.xcodeproj
+*.xcworkspace
+
+# IDE files
+.vscode/
