@@ -108,7 +108,6 @@ class NvimSession: VimSessionProtocol {
         return messageId
     }
     
-    
     private func sendMessage(_ message: [Any]) throws {
         guard let inputPipe = inputPipe else { throw NvimSessionError.notRunning }
         let data = try NvimRPC.encode(message)

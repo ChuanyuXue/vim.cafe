@@ -12,11 +12,6 @@ import Foundation
 // MARK: - Part 1: VimEngine Basic Functionality Tests
 struct VimEngineBasicTests {
     
-    @Test func testVimEngineInitialization() {
-        let engine = VimEngine()
-        #expect(engine != nil, "VimEngine should initialize successfully")
-    }
-    
     @Test func testSingleKeystrokeExecution() async throws {
         let engine = VimEngine()
         

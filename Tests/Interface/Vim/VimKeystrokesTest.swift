@@ -141,7 +141,7 @@ struct VimKeystrokesTests {
         
         let engine = VimEngine()
         
-        for (index, keystroke) in KEYSTROKES.enumerated() {
+        for keystroke in KEYSTROKES {
             do {
                 // Reset to normal mode before each test
                 _ = try engine.execKeystrokes([.escape])

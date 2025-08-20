@@ -22,7 +22,7 @@ enum VimKeystroke: String, CaseIterable {
     case asterisk = "*", leftParen = "(", rightParen = ")", minus = "-", underscore = "_", equals = "=", plus = "+"
     case leftBracket = "[", rightBracket = "]", leftBrace = "{", rightBrace = "}", backslash = "\\", pipe = "|"
     case semicolon = ";", colon = ":", quote = "'", doubleQuote = "\"", comma = ",", period = ".", slash = "/"
-    case question = "?", backtick = "`", tilde = "~", greater = ">", lessThan = "<LT>"
+    case question = "?", backtick = "`", tilde = "~", greater = ">", lessThan = "<lt>"
     
     // Special keys
     case escape = "<Esc>", enter = "<CR>", backspace = "<BS>", delete = "<Del>", tab = "<Tab>", shiftTab = "<S-Tab>"
