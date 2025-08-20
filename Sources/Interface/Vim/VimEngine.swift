@@ -8,41 +8,56 @@ Created:  2025-08-18T00:34:23.451Z
 import Foundation
 
 class VimEngine {
-    func execKeystrokes(session: VimSessionProtocol, keystrokes: [String]) throws -> VimState {
+    private let defaultState: VimState?
+    
+    init(defaultState: VimState? = nil) {
+        self.defaultState = defaultState
+    }
+    
+    func execKeystrokes(session: VimSessionProtocol, keystrokes: [VimKeystroke]) throws -> VimState {
         guard session.isRunning() else {
             throw VimEngineError.nvimNotRunning
         }
 
-        var lastValidState = try getState(session: session) ?? VimState(buffer: [], cursorRow: 0, cursorCol: 0, mode: "n")
+        var lastValidState = try getState(session: session) ?? VimState(buffer: [], cursor: VimCursor(row: 0, col: 0), mode: .normal)
         
         for keystroke in keystrokes {
             if let currentState = try getState(session: session) {
                 lastValidState = currentState
             }
-            try session.sendInput(keystroke)
+            try session.sendInput(keystroke.rawValue)
         }
         
         return try getState(session: session) ?? lastValidState 
     }
 
-    func execKeystrokes(_ keystrokes: [String]) throws -> VimState {
+    func execKeystrokes(_ keystrokes: [VimKeystroke]) throws -> VimState {
         let session = NvimSession()
         try session.start()
+
+        if let defaultState = self.defaultState {
+            try session.setBufferLines(buffer: 1, start: 0, end: -1, lines: defaultState.buffer)
+            try session.setCursorPosition(window: 0, row: defaultState.cursor.row, col: defaultState.cursor.col)
+        }
+
         defer { session.stop() }
         return try execKeystrokes(session: session, keystrokes: keystrokes)
     }
     
     func getState(session: VimSessionProtocol) throws -> VimState? {
         let modeInfo = try session.getMode()
+        
         guard !modeInfo.blocking else { return nil }
+        guard let vimMode = VimMode(rawValue: modeInfo.mode) else {
+            throw VimEngineError.invalidResponse("Unknown mode: \(modeInfo.mode)")
+        }
         
         let buffer = try session.getBufferLines(buffer: 1, start: 0, end: -1)
         let cursor = try session.getCursorPosition(window: 0)
         
-        return VimState(buffer: buffer, cursorRow: cursor.row, cursorCol: cursor.col, mode: modeInfo.mode)
+        return VimState(buffer: buffer, cursor: VimCursor(row: cursor.row, col: cursor.col), mode: vimMode)
     }
 }
-
 
 enum VimEngineError: Error {
     case nvimStartupFailed(Error)

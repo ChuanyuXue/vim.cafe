@@ -13,58 +13,58 @@ struct VimStateTests {
     @Test func basicInitialization() {
         let state = VimState(
             buffer: ["Hello", "World"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         
         #expect(state.buffer == ["Hello", "World"])
-        #expect(state.cursorRow == 0)
-        #expect(state.cursorCol == 0)
-        #expect(state.mode == "n")
+        #expect(state.cursor.row == 0)
+        #expect(state.cursor.col == 0)
+        #expect(state.mode == .normal)
     }
     
     @Test func emptyBuffer() {
         let state = VimState(
             buffer: [],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         
         #expect(state.buffer.isEmpty)
-        #expect(state.cursorRow == 0)
-        #expect(state.cursorCol == 0)
+        #expect(state.cursor.row == 0)
+        #expect(state.cursor.col == 0)
     }
     
     @Test(arguments: [
-        (["Single line"], 0, 5, "n"),
-        (["Line 1", "Line 2", "Line 3"], 1, 2, "i"),
-        (["Multiple", "lines", "buffer"], 2, 0, "v")
+        (["Single line"], 0, 5, VimMode.normal),
+        (["Line 1", "Line 2", "Line 3"], 1, 2, VimMode.insert),
+        (["Multiple", "lines", "buffer"], 2, 0, VimMode.visual)
     ])
-    func parameterizedCreation(buffer: [String], cursorRow: Int, cursorCol: Int, mode: String) {
-        let state = VimState(buffer: buffer, cursorRow: cursorRow, cursorCol: cursorCol, mode: mode)
+    func parameterizedCreation(buffer: [String], cursorRow: Int, cursorCol: Int, mode: VimMode) {
+        let state = VimState(buffer: buffer, cursor: VimCursor(row: cursorRow, col: cursorCol), mode: mode)
         
         #expect(state.buffer == buffer)
-        #expect(state.cursorRow == cursorRow)
-        #expect(state.cursorCol == cursorCol)
+        #expect(state.cursor.row == cursorRow)
+        #expect(state.cursor.col == cursorCol)
         #expect(state.mode == mode)
     }
     
     
     @Test func allModesAreHashable() {
-        let modes: Set<String> = ["n", "i", "v", "c", "R"]
+        let modes: Set<VimMode> = [.normal, .insert, .visual, .command, .replace]
         #expect(modes.count == 5)
     }
     
     @Test func identicalStatesAreEqual() {
         let state1 = VimState(
             buffer: ["Hello", "World"],
-            cursorRow: 1, cursorCol: 2,
-            mode: "i"
+            cursor: VimCursor(row: 1, col: 2),
+            mode: .insert
         )
         let state2 = VimState(
             buffer: ["Hello", "World"],
-            cursorRow: 1, cursorCol: 2,
-            mode: "i"
+            cursor: VimCursor(row: 1, col: 2),
+            mode: .insert
         )
         
         #expect(state1 == state2)
@@ -73,13 +73,13 @@ struct VimStateTests {
     @Test func differentStatesAreNotEqual() {
         let state1 = VimState(
             buffer: ["Hello"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         let state2 = VimState(
             buffer: ["World"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         
         #expect(state1 != state2)
@@ -88,13 +88,13 @@ struct VimStateTests {
     @Test func statesWithDifferentCursorsAreNotEqual() {
         let state1 = VimState(
             buffer: ["Hello"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         let state2 = VimState(
             buffer: ["Hello"],
-            cursorRow: 0, cursorCol: 1,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 1),
+            mode: .normal
         )
         
         #expect(state1 != state2)
@@ -103,13 +103,13 @@ struct VimStateTests {
     @Test func statesWithDifferentModesAreNotEqual() {
         let state1 = VimState(
             buffer: ["Hello"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "n"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .normal
         )
         let state2 = VimState(
             buffer: ["Hello"],
-            cursorRow: 0, cursorCol: 0,
-            mode: "i"
+            cursor: VimCursor(row: 0, col: 0),
+            mode: .insert
         )
         
         #expect(state1 != state2)

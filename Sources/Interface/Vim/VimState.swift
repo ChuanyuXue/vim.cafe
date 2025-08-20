@@ -7,22 +7,22 @@ Created:  2025-08-17T20:15:34.781Z
 
 import Foundation
 
-/**
-Minimum state to describe the visible state of vim.
-There might be hidden states, e.g., registers, previous keystrokes, etc.
-*/
 struct VimState: Hashable {
     let buffer: [String]
-    let cursorRow: Int
-    let cursorCol: Int
-    let mode: String
-    
-    static let COMMON_MODES: [String] = [
-        "n",   // Normal
-        "i",   // Insert
-        "v",   // Visual by character
-        "V",   // Visual by line
-        "c",   // Command-line editing
-        "R"    // Replace
-    ]
+    let cursor: VimCursor
+    let mode: VimMode
+}
+
+enum VimMode: String, CaseIterable {
+    case normal = "n"
+    case insert = "i"
+    case visual = "v"
+    case visualLine = "V"
+    case command = "c"
+    case replace = "R"
+}
+
+struct VimCursor: Hashable {
+    let row: Int
+    let col: Int
 }

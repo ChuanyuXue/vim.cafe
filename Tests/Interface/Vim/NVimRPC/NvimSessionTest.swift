@@ -155,7 +155,7 @@ struct NvimSessionBasicTests {
         try await Task.sleep(for: .milliseconds(200))
         
         let mode = try session.getMode()
-        #expect(mode.mode == "n", "Should start in normal mode")
+        #expect(mode.mode == .normal, "Should start in normal mode")
         #expect(!mode.blocking, "Should not be blocking initially")
         
         session.stop()
@@ -171,13 +171,13 @@ struct NvimSessionBasicTests {
         try await Task.sleep(for: .milliseconds(100))
         
         let mode = try session.getMode()
-        #expect(mode.mode == "i", "Should be in insert mode after 'i' command")
+        #expect(mode.mode == .insert, "Should be in insert mode after 'i' command")
         
         try session.sendInput("\u{1b}")
         try await Task.sleep(for: .milliseconds(100))
         
         let normalMode = try session.getMode()
-        #expect(normalMode.mode == "n", "Should return to normal mode after escape")
+        #expect(normalMode.mode == .normal, "Should return to normal mode after escape")
         
         session.stop()
     }
@@ -259,7 +259,7 @@ struct NvimSessionBasicTests {
         try await Task.sleep(for: .milliseconds(200))
         
         let mode = try session.getMode()
-        #expect(mode.mode == "n", "Should respond within timeout")
+        #expect(mode.mode == .normal, "Should respond within timeout")
         
         session.stop()
     }
@@ -346,8 +346,8 @@ struct NvimSessionMultipleInstanceTests {
         let mode1 = try session1.getMode()
         let mode2 = try session2.getMode()
         
-        #expect(mode1.mode == "i", "Session 1 should be in insert mode")
-        #expect(mode2.mode == "n", "Session 2 should remain in normal mode")
+        #expect(mode1.mode == .insert, "Session 1 should be in insert mode")
+        #expect(mode2.mode == .normal, "Session 2 should remain in normal mode")
         
         try session1.sendInput("\u{1b}")
         try await Task.sleep(for: .milliseconds(100))
@@ -355,8 +355,8 @@ struct NvimSessionMultipleInstanceTests {
         let finalMode1 = try session1.getMode()
         let finalMode2 = try session2.getMode()
         
-        #expect(finalMode1.mode == "n", "Session 1 should return to normal mode")
-        #expect(finalMode2.mode == "n", "Session 2 should still be in normal mode")
+        #expect(finalMode1.mode == .normal, "Session 1 should return to normal mode")
+        #expect(finalMode2.mode == .normal, "Session 2 should still be in normal mode")
         
         session1.stop()
         session2.stop()
@@ -413,8 +413,8 @@ struct NvimSessionMultipleInstanceTests {
         let mode1 = try session1.getMode()
         let mode3 = try session3.getMode()
         
-        #expect(mode1.mode == "n", "Session 1 should still work")
-        #expect(mode3.mode == "n", "Session 3 should still work")
+        #expect(mode1.mode == .normal, "Session 1 should still work")
+        #expect(mode3.mode == .normal, "Session 3 should still work")
         
         session1.stop()
         session3.stop()

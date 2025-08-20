@@ -7,49 +7,51 @@ Created:  2025-08-17T20:15:34.781Z
 
 import Foundation
 
-let KEYSTROKES: [String] = [
+enum VimKeystroke: String, CaseIterable {
     // Letters
-    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    case a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j", k = "k", l = "l", m = "m"
+    case n = "n", o = "o", p = "p", q = "q", r = "r", s = "s", t = "t", u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+    case A = "A", B = "B", C = "C", D = "D", E = "E", F = "F", G = "G", H = "H", I = "I", J = "J", K = "K", L = "L", M = "M"
+    case N = "N", O = "O", P = "P", Q = "Q", R = "R", S = "S", T = "T", U = "U", V = "V", W = "W", X = "X", Y = "Y", Z = "Z"
     
     // Numbers
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    case zero = "0", one = "1", two = "2", three = "3", four = "4", five = "5", six = "6", seven = "7", eight = "8", nine = "9"
     
-    // Symbols (all printable ASCII 32-126, except < which is <LT>)
-    " ", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "_",
-    "=", "+", "[", "]", "{", "}", "\\", "|", ";", ":", "'", "\"",
-    ",", ".", "/", "?", "`", "~", ">", "<LT>",  // <LT> for literal <
+    // Symbols
+    case space = " ", exclamation = "!", at = "@", hash = "#", dollar = "$", percent = "%", caret = "^", ampersand = "&"
+    case asterisk = "*", leftParen = "(", rightParen = ")", minus = "-", underscore = "_", equals = "=", plus = "+"
+    case leftBracket = "[", rightBracket = "]", leftBrace = "{", rightBrace = "}", backslash = "\\", pipe = "|"
+    case semicolon = ";", colon = ":", quote = "'", doubleQuote = "\"", comma = ",", period = ".", slash = "/"
+    case question = "?", backtick = "`", tilde = "~", greater = ">", lessThan = "<LT>"
     
-    // Basic special keys
-    "<Esc>", "<CR>", "<BS>", "<Del>", "<Tab>", "<S-Tab>", "<Space>",
-    "<Insert>",
+    // Special keys
+    case escape = "<Esc>", enter = "<CR>", backspace = "<BS>", delete = "<Del>", tab = "<Tab>", shiftTab = "<S-Tab>"
+    case spaceKey = "<Space>", insert = "<Insert>"
     
     // Arrow keys
-    "<Up>", "<Down>", "<Left>", "<Right>",
+    case up = "<Up>", down = "<Down>", left = "<Left>", right = "<Right>"
     
-    // Navigation keys
-    "<Home>", "<End>", "<PageUp>", "<PageDown>",
+    // Navigation
+    case home = "<Home>", end = "<End>", pageUp = "<PageUp>", pageDown = "<PageDown>"
     
-    // Function keys F1-F12
-    "<F1>", "<F2>", "<F3>", "<F4>", "<F5>", "<F6>",
-    "<F7>", "<F8>", "<F9>", "<F10>", "<F11>", "<F12>",
+    // Function keys
+    case f1 = "<F1>", f2 = "<F2>", f3 = "<F3>", f4 = "<F4>", f5 = "<F5>", f6 = "<F6>"
+    case f7 = "<F7>", f8 = "<F8>", f9 = "<F9>", f10 = "<F10>", f11 = "<F11>", f12 = "<F12>"
     
-    // Ctrl combinations (all letters)
-    "<C-a>", "<C-b>", "<C-c>", "<C-d>", "<C-e>", "<C-f>", "<C-g>",
-    "<C-h>", "<C-i>", "<C-j>", "<C-k>", "<C-l>", "<C-m>", "<C-n>",
-    "<C-o>", "<C-p>", "<C-q>", "<C-r>", "<C-s>", "<C-t>", "<C-u>",
-    "<C-v>", "<C-w>", "<C-x>", "<C-y>", "<C-z>",
+    // Ctrl combinations
+    case ctrlA = "<C-a>", ctrlB = "<C-b>", ctrlC = "<C-c>", ctrlD = "<C-d>", ctrlE = "<C-e>", ctrlF = "<C-f>", ctrlG = "<C-g>"
+    case ctrlH = "<C-h>", ctrlI = "<C-i>", ctrlJ = "<C-j>", ctrlK = "<C-k>", ctrlL = "<C-l>", ctrlM = "<C-m>", ctrlN = "<C-n>"
+    case ctrlO = "<C-o>", ctrlP = "<C-p>", ctrlQ = "<C-q>", ctrlR = "<C-r>", ctrlS = "<C-s>", ctrlT = "<C-t>", ctrlU = "<C-u>"
+    case ctrlV = "<C-v>", ctrlW = "<C-w>", ctrlX = "<C-x>", ctrlY = "<C-y>", ctrlZ = "<C-z>"
     
-    // Meta/Alt combinations (all letters)
-    "<M-a>", "<M-b>", "<M-c>", "<M-d>", "<M-e>", "<M-f>", "<M-g>",
-    "<M-h>", "<M-i>", "<M-j>", "<M-k>", "<M-l>", "<M-m>", "<M-n>",
-    "<M-o>", "<M-p>", "<M-q>", "<M-r>", "<M-s>", "<M-t>", "<M-u>",
-    "<M-v>", "<M-w>", "<M-x>", "<M-y>", "<M-z>",
+    // Meta/Alt combinations
+    case metaA = "<M-a>", metaB = "<M-b>", metaC = "<M-c>", metaD = "<M-d>", metaE = "<M-e>", metaF = "<M-f>", metaG = "<M-g>"
+    case metaH = "<M-h>", metaI = "<M-i>", metaJ = "<M-j>", metaK = "<M-k>", metaL = "<M-l>", metaM = "<M-m>", metaN = "<M-n>"
+    case metaO = "<M-o>", metaP = "<M-p>", metaQ = "<M-q>", metaR = "<M-r>", metaS = "<M-s>", metaT = "<M-t>", metaU = "<M-u>"
+    case metaV = "<M-v>", metaW = "<M-w>", metaX = "<M-x>", metaY = "<M-y>", metaZ = "<M-z>"
     
-    // Directional modifier combinations
-    "<C-Left>", "<C-Right>", "<C-Up>", "<C-Down>",
-    "<S-Left>", "<S-Right>", "<S-Up>", "<S-Down>",
-    "<M-Left>", "<M-Right>", "<M-Up>", "<M-Down>"
-]
+    // Directional modifiers
+    case ctrlLeft = "<C-Left>", ctrlRight = "<C-Right>", ctrlUp = "<C-Up>", ctrlDown = "<C-Down>"
+    case shiftLeft = "<S-Left>", shiftRight = "<S-Right>", shiftUp = "<S-Up>", shiftDown = "<S-Down>"
+    case metaLeft = "<M-Left>", metaRight = "<M-Right>", metaUp = "<M-Up>", metaDown = "<M-Down>"
+}
