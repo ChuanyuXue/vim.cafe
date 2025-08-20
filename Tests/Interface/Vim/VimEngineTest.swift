@@ -100,9 +100,9 @@ struct VimEngineSessionTests {
         
         #expect(state != nil, "Should retrieve state successfully")
         #expect(state?.buffer == ["Test line 1", "Test line 2"], "Should match buffer content")
-        #expect(state?.cursorRow == 1, "Should match cursor row")
-        #expect(state?.cursorCol == 5, "Should match cursor col")
-        #expect(state?.mode == .normal, "Should be in normal mode")
+        #expect(state?.cursor.row == 1, "Should match cursor row")
+        #expect(state?.cursor.col == 5, "Should match cursor col")
+        #expect(state?.mode == VimMode.normal, "Should be in normal mode")
         
         session.stop()
     }
@@ -120,7 +120,7 @@ struct VimEngineSessionTests {
         let state = try engine.getState(session: session)
         
         if let state = state {
-            #expect(state.mode == .command, "Should be in command mode when not blocking")
+            #expect(state.mode == VimMode.command, "Should be in command mode when not blocking")
         }
         
         try session.sendInput("<Esc>")
@@ -182,14 +182,17 @@ struct VimEngineEditingTests {
     @Test func testDeleteAndUndoOperations() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "Text to delete", "<Esc>",
-            "0", "dw"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("Text to delete")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.zero])
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.d, .w])
         
-        #expect(result.mode == .normal, "Should be in normal mode")
+        #expect(result.mode == VimMode.normal, "Should be in normal mode")
         #expect(result.buffer.first?.contains("Text") == false, "First word should be deleted")
         #expect(result.buffer.first?.contains("to delete") == true, "Rest of text should remain")
     }
@@ -197,42 +200,60 @@ struct VimEngineEditingTests {
     @Test func testSearchAndReplace() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "foo bar foo", "<Esc>",
-            "/", "foo", "<CR>"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("foo bar foo")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.slash])
+        try session.sendInput("foo")
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.enter])
         
-        #expect(result.mode == .normal, "Should return to normal mode after search")
+        #expect(result.mode == VimMode.normal, "Should return to normal mode after search")
         #expect(result.buffer.first?.contains("foo bar foo") == true, "Should contain original text")
     }
     
     @Test func testWordMovement() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "word1 word2 word3", "<Esc>",
-            "0", "w", "w"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("word1 word2 word3")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.zero])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.w])
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.w])
         
-        #expect(result.mode == .normal, "Should be in normal mode")
-        #expect(result.cursorCol >= 12, "Cursor should be on third word")
+        #expect(result.mode == VimMode.normal, "Should be in normal mode")
+        #expect(result.cursor.col >= 12, "Cursor should be on third word")
     }
     
     @Test func testLineOperations() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "Line 1", "<CR>", "Line 2", "<CR>", "Line 3", "<Esc>",
-            "gg", "o", "New line", "<Esc>"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("Line 1")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.enter])
+        try session.sendInput("Line 2")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.enter])
+        try session.sendInput("Line 3")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.g, .g])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        try session.sendInput("New line")
         
-        #expect(result.mode == .normal, "Should be in normal mode")
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        
+        #expect(result.mode == VimMode.normal, "Should be in normal mode")
         #expect(result.buffer.count >= 4, "Should have at least 4 lines")
         #expect(result.buffer.contains("New line"), "Should contain new line")
     }
@@ -246,23 +267,25 @@ struct VimEngineEdgeCaseTests {
         
         let result = try engine.execKeystrokes([])
         
-        #expect(result.mode == .normal, "Should be in normal mode with empty keystrokes")
-        #expect(result.cursorRow == 0, "Cursor should be at origin")
-        #expect(result.cursorCol == 0, "Cursor should be at origin")
+        #expect(result.mode == VimMode.normal, "Should be in normal mode with empty keystrokes")
+        #expect(result.cursor.row == 0, "Cursor should be at origin")
+        #expect(result.cursor.col == 0, "Cursor should be at origin")
     }
     
     @Test func testLargeKeystrokeSequence() async throws {
         let engine = VimEngine()
         
-        var keystrokes = ["i"]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
+        
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
         for i in 1...100 {
-            keystrokes.append("Line \(i) ")
+            try session.sendInput("Line \(i) ")
         }
-        keystrokes.append("<Esc>")
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(keystrokes)
-        
-        #expect(result.mode == .normal, "Should handle large keystroke sequence")
+        #expect(result.mode == VimMode.normal, "Should handle large keystroke sequence")
         #expect(result.buffer.first?.contains("Line 1") == true, "Should contain first line")
         #expect(result.buffer.first?.contains("Line 100") == true, "Should contain last line")
     }
@@ -270,42 +293,51 @@ struct VimEngineEdgeCaseTests {
     @Test func testSpecialCharacters() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "Special: !@#$%^&*()", "<Esc>"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("Special: !@#$%^&*()")
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        #expect(result.mode == .normal, "Should handle special characters")
+        #expect(result.mode == VimMode.normal, "Should handle special characters")
         #expect(result.buffer.first?.contains("Special: !@#$%^&*()") == true, "Should contain special characters")
     }
     
     @Test func testUnicodeCharacters() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "Unicode: 你好世界 🌍", "<Esc>"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("Unicode: 你好世界 🌍")
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        #expect(result.mode == .normal, "Should handle unicode characters")
+        #expect(result.mode == VimMode.normal, "Should handle unicode characters")
         #expect(result.buffer.first?.contains("Unicode:") == true, "Should contain unicode text")
     }
     
     @Test func testModeTransitions() async throws {
         let engine = VimEngine()
         
-        let keystrokes = [
-            "i", "Insert mode", "<Esc>",
-            "v", "<Esc>",
-            "V", "<Esc>",
-            ":", "<Esc>"
-        ]
+        let session = NvimSession()
+        try session.start()
+        defer { session.stop() }
         
-        let result = try engine.execKeystrokes(keystrokes)
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("Insert mode")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.v])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.V])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        #expect(result.mode == .normal, "Should end in normal mode after multiple transitions")
+        #expect(result.mode == VimMode.normal, "Should end in normal mode after multiple transitions")
     }
     
     @Test func testBufferStateConsistency() async throws {
