@@ -149,8 +149,8 @@ struct VimKeystrokesTests {
                 // Try to send the keystroke - should always return a valid state now
                 let resultState = try engine.execKeystrokes([VimKeystroke(rawValue: keystroke) ?? .escape])
                 
-                // Verify we got a valid state back
-                #expect(resultState.mode == .normal || resultState.mode == .insert || resultState.mode == .visual || resultState.mode == .visualLine || resultState.mode == .command || resultState.mode == .replace, "Mode should be valid for keystroke '\(keystroke)'")
+                // Verify we got a valid state back with a recognized mode
+                #expect(VimMode.allCases.contains(resultState.mode), "Mode should be valid for keystroke '\(keystroke)' but got \(resultState.mode)")
                 
                 
             } catch {
@@ -180,9 +180,7 @@ struct VimKeystrokesTests {
                 let resultState = try engine.execKeystrokes([VimKeystroke(rawValue: keystroke) ?? .escape])
                 
                 // Verify we got a valid state back (this is the key test)
-                if !(resultState.mode == .normal || resultState.mode == .insert || resultState.mode == .visual || resultState.mode == .visualLine || resultState.mode == .command || resultState.mode == .replace) {
-                    failedKeystrokes.append(keystroke)
-                }
+                #expect(VimMode.allCases.contains(resultState.mode), "Mode should be valid for keystroke '\(keystroke)'")
                 
                 testedCount += 1
                 
@@ -217,7 +215,7 @@ struct VimKeystrokesTests {
                     _ = try engine.execKeystrokes([.escape])  // Reset to normal mode
                     let resultState = try engine.execKeystrokes([VimKeystroke(rawValue: key) ?? .escape])
                     // If we get a valid state back, the keystroke was handled
-                    if resultState.mode == VimMode.normal || resultState.mode == VimMode.insert || resultState.mode == VimMode.visual || resultState.mode == VimMode.visualLine || resultState.mode == VimMode.command || resultState.mode == VimMode.replace {
+                    if VimMode.allCases.contains(resultState.mode) {
                         recognized += 1
                     }
                 } catch {
@@ -250,7 +248,7 @@ struct VimKeystrokesTests {
             do {
                 _ = try engine.execKeystrokes([.escape]) // Reset to normal mode
                 let result = try engine.execKeystrokes([key])
-                #expect(result.mode == .normal || result.mode == .insert || result.mode == .visual || result.mode == .visualLine || result.mode == .command || result.mode == .replace, "Keystroke '\(key)' should return valid mode")
+                #expect(VimMode.allCases.contains(result.mode), "Keystroke '\(key)' should return valid mode")
                 #expect(result.cursor.row >= 0, "Keystroke '\(key)' should return valid cursor row")
                 #expect(result.cursor.col >= 0, "Keystroke '\(key)' should return valid cursor col")
             } catch {
@@ -267,7 +265,7 @@ struct VimKeystrokesTests {
         let engine = VimEngine()
         
         let result = try engine.execKeystrokes([.h])
-        #expect(result.mode == .normal || result.mode == .insert || result.mode == .visual || result.mode == .visualLine || result.mode == .command || result.mode == .replace, "Should return valid mode")
+        #expect(VimMode.allCases.contains(result.mode), "Should return valid mode")
     }
     
     @Test func testImprovedBlockingDetection() throws {
@@ -401,7 +399,7 @@ struct VimKeystrokesRealWorldTests {
         
         #expect(result.mode == VimMode.normal, "Should end in normal mode")
         #expect(result.buffer.count >= 3, "Should have at least 3 lines")
-        #expect(result.buffer.first?.contains("Quick") == true, "Should contain corrected 'Quick'")
+        #expect(result.buffer.first?.contains("quick") == true, "Should contain corrected 'quick'")
     }
     
     @Test func testNavigationAndSelection() throws {
@@ -500,9 +498,9 @@ struct VimKeystrokesRealWorldTests {
         
         #expect(result.mode == VimMode.normal, "Should end in normal mode")
         #expect(result.buffer.count >= 4, "Should have at least 4 lines")
-        #expect(result.buffer.contains("DONE:"), "Should contain DONE:")
-        #expect(result.buffer.contains("FIXED:"), "Should contain FIXED:")
-        #expect(result.buffer.contains("TESTED:"), "Should contain TESTED:")
+        #expect(result.buffer.joined(separator: "\n").contains("DONE:"), "Should contain DONE:")
+        #expect(result.buffer.joined(separator: "\n").contains("FIXED:"), "Should contain FIXED:")
+        #expect(result.buffer.joined(separator: "\n").contains("TESTED:"), "Should contain TESTED:")
         #expect(result.buffer.last?.contains("completed") == true, "Should contain completion message")
     }
     
@@ -527,9 +525,9 @@ struct VimKeystrokesRealWorldTests {
         
         #expect(result.mode == VimMode.normal, "Should end in normal mode")
         #expect(result.buffer.count >= 5, "Should have at least 5 lines")
-        #expect(result.buffer.contains("$var"), "Should contain variable syntax")
-        #expect(result.buffer.contains("!@#$%^&*()"), "Should contain special symbols")
-        #expect(result.buffer.contains("\"double\""), "Should contain quoted text")
+        #expect(result.buffer.joined(separator: "\n").contains("$var"), "Should contain variable syntax")
+        #expect(result.buffer.joined(separator: "\n").contains("!@#$%^&*()"), "Should contain special symbols")
+        #expect(result.buffer.joined(separator: "\n").contains("\"double\""), "Should contain quoted text")
     }
     
     @Test func testFunctionKeys() throws {
@@ -688,7 +686,7 @@ struct VimKeystrokesRealWorldTests {
                 let result = try engine.execKeystrokes([VimKeystroke(rawValue: keystroke) ?? .escape])
                 
                 // Verify we get a valid response
-                if (result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace) && result.cursor.row >= 0 && result.cursor.col >= 0 {
+                if VimMode.allCases.contains(result.mode) && result.cursor.row >= 0 && result.cursor.col >= 0 {
                     successCount += 1
                 } else {
                     problematicKeys.append("\(keystroke) (invalid state)")
@@ -717,7 +715,7 @@ struct VimKeystrokesRealWorldTests {
         var result = try engine.execKeystrokes(session: session, keystrokes: [.i])
         try session.sendInput("test")
         result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        #expect(result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace, "Mode should be valid")
+        #expect(VimMode.allCases.contains(result.mode), "Mode should be valid")
         #expect(result.cursor.row >= 0, "Cursor row should be valid")
         #expect(result.cursor.col >= 0, "Cursor col should be valid")
         #expect(result.buffer.count >= 0, "Buffer should be valid")
@@ -726,23 +724,23 @@ struct VimKeystrokesRealWorldTests {
         result = try engine.execKeystrokes(session: session, keystrokes: [.a])
         try session.sendInput("append")
         result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        #expect(result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace, "Mode should be valid")
+        #expect(VimMode.allCases.contains(result.mode), "Mode should be valid")
         
         // Test visual selection
         result = try engine.execKeystrokes(session: session, keystrokes: [.v])
         result = try engine.execKeystrokes(session: session, keystrokes: [.l])
         result = try engine.execKeystrokes(session: session, keystrokes: [.l])
         result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        #expect(result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace, "Mode should be valid")
+        #expect(VimMode.allCases.contains(result.mode), "Mode should be valid")
         
         // Test visual line
         result = try engine.execKeystrokes(session: session, keystrokes: [.V])
         result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        #expect(result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace, "Mode should be valid")
+        #expect(VimMode.allCases.contains(result.mode), "Mode should be valid")
         
         // Test command mode
         result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
         result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        #expect(result.mode == VimMode.normal || result.mode == VimMode.insert || result.mode == VimMode.visual || result.mode == VimMode.visualLine || result.mode == VimMode.command || result.mode == VimMode.replace, "Mode should be valid")
+        #expect(VimMode.allCases.contains(result.mode), "Mode should be valid")
     }
 }

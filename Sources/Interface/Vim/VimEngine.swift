@@ -48,14 +48,20 @@ class VimEngine {
         let modeInfo = try session.getMode()
         
         guard !modeInfo.blocking else { return nil }
-        guard let vimMode = VimMode(rawValue: modeInfo.mode) else {
-            throw VimEngineError.invalidResponse("Unknown mode: \(modeInfo.mode)")
-        }
-        
+
+        let vimMode = try getMode(session: session)
         let buffer = try session.getBufferLines(buffer: 1, start: 0, end: -1)
         let cursor = try session.getCursorPosition(window: 0)
         
         return VimState(buffer: buffer, cursor: VimCursor(row: cursor.row, col: cursor.col), mode: vimMode)
+    }
+    
+    func getMode(session: VimSessionProtocol) throws -> VimMode {
+        let modeInfo = try session.getMode()
+        guard let vimMode = VimMode(rawValue: modeInfo.mode) else {
+            throw VimEngineError.invalidResponse("Unknown mode: \(modeInfo.mode)")
+        }
+        return vimMode
     }
 }
 
