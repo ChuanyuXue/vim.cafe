@@ -12,7 +12,7 @@
 When run `swift test`:
 
 ```
-􀢄  Test testCountPrefixWithMotion() recorded an issue at VimKeystrokesTest.swift:343:6: Caught error: nvimStartupFailed(VimCafe.NvimClientError.communicationFailed("Timeout waiting for nvim response"))
+􀢄  Test testCountPrefixWithMotion() recorded an issue at VimKeystrokesTest.swift:343:6: Caught error: nvimStartupFailed(VimCafe.NvimSessionError.communicationFailed("Timeout waiting for nvim response"))
 ```
 
 When run `swift test --filter testCountPrefixWithMotion`:

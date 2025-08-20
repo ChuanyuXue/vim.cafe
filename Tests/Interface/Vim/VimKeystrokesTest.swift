@@ -244,7 +244,7 @@ struct VimKeystrokesTests {
                 _ = try engine.execKeystrokes(["<Esc>"]) // Reset to normal mode
                 _ = try engine.execKeystrokes([key])
                 print("✓ '\(key)' works")
-            } catch let error as NvimClientError {
+            } catch let error as NvimSessionError {
                 failed.append(key)
                 switch error {
                 case .startupFailed(let underlyingError):

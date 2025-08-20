@@ -28,7 +28,7 @@ class NvimSession: VimSessionProtocol {
         do {
             try process.run()
         } catch {
-            throw NvimClientError.startupFailed(error)
+            throw NvimSessionError.startupFailed(error)
         }
         
         self.nvimProcess = process
@@ -69,7 +69,7 @@ class NvimSession: VimSessionProtocol {
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
         try callRPC(method: "nvim_buf_get_lines", params: [buffer, start, end, false]) { response in
             guard response.count >= 4, let result = response[3] as? [String] else {
-                throw NvimClientError.invalidResponse("Failed to get buffer lines")
+                throw NvimSessionError.invalidResponse("Failed to get buffer lines")
             }
             return result
         }
@@ -82,7 +82,7 @@ class NvimSession: VimSessionProtocol {
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int) {
         try callRPC(method: "nvim_win_get_cursor", params: [window]) { response in
             guard response.count >= 4, let result = response[3] as? [Int], result.count >= 2 else {
-                throw NvimClientError.invalidResponse("Failed to get cursor position")
+                throw NvimSessionError.invalidResponse("Failed to get cursor position")
             }
             return (row: result[0] - 1, col: result[1])
         }
@@ -96,7 +96,7 @@ class NvimSession: VimSessionProtocol {
         try callRPC(method: "nvim_get_mode", params: []) { response in
             guard response.count >= 4, let result = response[3] as? [String: Any],
                   let mode = result["mode"] as? String else {
-                throw NvimClientError.invalidResponse("Failed to get current mode")
+                throw NvimSessionError.invalidResponse("Failed to get current mode")
             }
             let blocking = result["blocking"] as? Bool ?? false
             return (mode: mode, blocking: blocking)
@@ -110,15 +110,15 @@ class NvimSession: VimSessionProtocol {
     
     
     private func sendMessage(_ message: [Any]) throws {
-        guard let inputPipe = inputPipe else { throw NvimClientError.notRunning }
+        guard let inputPipe = inputPipe else { throw NvimSessionError.notRunning }
         let data = try NvimRPC.encode(message)
         inputPipe.fileHandleForWriting.write(data)
     }
     
     private func receiveResponse() throws -> [Any] {
-        guard let outputPipe = outputPipe else { throw NvimClientError.notRunning }
+        guard let outputPipe = outputPipe else { throw NvimSessionError.notRunning }
         let data = outputPipe.fileHandleForReading.availableData
-        guard !data.isEmpty else { throw NvimClientError.communicationFailed("No data received") }
+        guard !data.isEmpty else { throw NvimSessionError.communicationFailed("No data received") }
         return try NvimRPC.decode(data)
     }
 }
@@ -131,14 +131,12 @@ struct NvimRPC {
         return [0, id, method, params]
     }
     
-    // Legacy methods for backward compatibility with tests
     static func encode(_ object: Any) throws -> Data {
         return try encoder.encode(AnyCodable(object))
     }
     
     static func decode(_ data: Data) throws -> [Any] {
         let decoded = try decoder.decode(AnyCodable.self, from: data)
-        // All our usage is for RPC messages, so return the array directly
         return decoded.value as? [Any] ?? [decoded.value]
     }
 }
@@ -200,9 +198,7 @@ struct AnyCodable: Codable {
     }
 }
 
-
-
-enum NvimClientError: Error {
+enum NvimSessionError: Error {
     case startupFailed(Error)
     case communicationFailed(String)
     case invalidResponse(String)
