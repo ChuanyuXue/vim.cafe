@@ -11,11 +11,17 @@ import PackageDescription
 let package = Package(
     name: "vim.cafe",
     platforms: [
-        .macOS(.v10_15)
+        .macOS(.v13)
+    ],
+    dependencies: [
+        .package(url: "https://github.com/fumoboy007/msgpack-swift.git", from: "2.0.0")
     ],
     targets: [
         .target(
             name: "VimCafe",
+            dependencies: [
+                .product(name: "DMMessagePack", package: "msgpack-swift")
+            ],
             path: "Sources",
             resources: [
                 .copy("Interface/Golf/vimgolf.vimrc")

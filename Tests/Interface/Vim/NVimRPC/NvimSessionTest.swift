@@ -29,66 +29,72 @@ struct NvimRPCTests {
         }
     }
     
-    @Test func testEncodeDecodeString() throws {
-        let testString = "hello world"
-        let encoded = try NvimRPC.encode(testString)
+    @Test func testEncodeDecodeRequest() throws {
+        let request = NvimRPC.createRequest(id: 1, method: "nvim_input", params: ["hello world"])
+        let encoded = try NvimRPC.encode(request)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
-        #expect(decoded[0] as? String == testString, "Decoded string should match original")
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 1, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_input", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?.count == 1, "Fourth element should have 1 parameter")
+        #expect((decoded[3] as? [Any])?[0] as? String == "hello world", "Parameter should be 'hello world'")
     }
     
-    @Test func testEncodeDecodeInt() throws {
-        let testInt = 42
-        let encoded = try NvimRPC.encode(testInt)
+    @Test func testEncodeDecodeRequestWithInt() throws {
+        let request = NvimRPC.createRequest(id: 42, method: "nvim_buf_get_lines", params: [1, 0, -1, false])
+        let encoded = try NvimRPC.encode(request)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
-        #expect(decoded[0] as? Int == testInt, "Decoded int should match original")
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 42, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_buf_get_lines", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?.count == 4, "Fourth element should have 4 parameters")
     }
     
-    @Test func testEncodeDecodeUInt32() throws {
-        let testUInt: UInt32 = 12345
-        let encoded = try NvimRPC.encode(testUInt)
+    @Test func testEncodeDecodeResponse() throws {
+        let response: [Any] = [1, UInt32(12345), NSNull(), ["result", "data"]]
+        let encoded = try NvimRPC.encode(response)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
-        #expect(decoded[0] as? Int == Int(testUInt), "Decoded UInt32 should match original")
+        #expect(decoded.count == 4, "RPC response should have 4 elements")
+        #expect(decoded[0] as? Int == 1, "First element should be 1 (response type)")
+        #expect(decoded[1] as? Int == 12345, "Second element should be message ID")
+        #expect(decoded[2] is NSNull, "Third element should be null (no error)")
+        #expect((decoded[3] as? [Any])?.count == 2, "Fourth element should be result array")
     }
     
-    @Test func testEncodeDecodeBool() throws {
-        let testBoolTrue = true
-        let encodedTrue = try NvimRPC.encode(testBoolTrue)
-        let decodedTrue = try NvimRPC.decode(encodedTrue)
-        
-        #expect(decodedTrue.count == 1, "Should decode to single element")
-        #expect(decodedTrue[0] as? Bool == true, "Decoded bool should be true")
-        
-        let testBoolFalse = false
-        let encodedFalse = try NvimRPC.encode(testBoolFalse)
-        let decodedFalse = try NvimRPC.decode(encodedFalse)
-        
-        #expect(decodedFalse.count == 1, "Should decode to single element")
-        #expect(decodedFalse[0] as? Bool == false, "Decoded bool should be false")
-    }
-    
-    @Test func testEncodeDecodeArray() throws {
-        let testArray: [Any] = ["hello", 42, true, "world"]
-        let encoded = try NvimRPC.encode(testArray)
+    @Test func testEncodeDecodeRequestWithBool() throws {
+        let request = NvimRPC.createRequest(id: 1, method: "nvim_buf_set_lines", params: [1, 0, -1, false, ["line1", "line2"]])
+        let encoded = try NvimRPC.encode(request)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 1, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_buf_set_lines", "Third element should be method name")
         
-        guard let decodedArray = decoded[0] as? [Any] else {
-            Issue.record("Decoded value should be an array")
-            return
-        }
+        let params = decoded[3] as? [Any]
+        #expect(params?.count == 5, "Should have 5 parameters")
+        #expect(params?[3] as? Bool == false, "Fourth parameter should be false")
+        #expect((params?[4] as? [Any])?.count == 2, "Fifth parameter should be array with 2 lines")
+    }
+    
+    @Test func testEncodeDecodeNotification() throws {
+        let notification: [Any] = [2, "nvim_buf_lines_event", [1, 0, 5, ["new line"], false]]
+        let encoded = try NvimRPC.encode(notification)
+        let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decodedArray.count == 4, "Should have 4 elements")
-        #expect(decodedArray[0] as? String == "hello", "First element should be 'hello'")
-        #expect(decodedArray[1] as? Int == 42, "Second element should be 42")
-        #expect(decodedArray[2] as? Bool == true, "Third element should be true")
-        #expect(decodedArray[3] as? String == "world", "Fourth element should be 'world'")
+        #expect(decoded.count == 3, "RPC notification should have 3 elements")
+        #expect(decoded[0] as? Int == 2, "First element should be 2 (notification type)")
+        #expect(decoded[1] as? String == "nvim_buf_lines_event", "Second element should be event name")
+        
+        let params = decoded[2] as? [Any]
+        #expect(params?.count == 5, "Third element should have 5 parameters")
+        #expect(params?[0] as? Int == 1, "First param should be buffer ID")
+        #expect((params?[3] as? [Any])?.count == 1, "Fourth param should be lines array")
     }
     
     @Test func testEncodeDecodeComplexRequest() throws {
@@ -103,22 +109,27 @@ struct NvimRPCTests {
         #expect((decoded[3] as? [Any])?.count == 0, "Fourth element should be empty params array")
     }
     
-    @Test func testEncodeDecodeNegativeInt() throws {
-        let testInt = -42
-        let encoded = try NvimRPC.encode(testInt)
+    @Test func testEncodeDecodeErrorResponse() throws {
+        let errorResponse: [Any] = [1, UInt32(42), "Invalid buffer", NSNull()]
+        let encoded = try NvimRPC.encode(errorResponse)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
-        #expect(decoded[0] as? Int == testInt, "Decoded negative int should match original")
+        #expect(decoded.count == 4, "RPC error response should have 4 elements")
+        #expect(decoded[0] as? Int == 1, "First element should be 1 (response type)")
+        #expect(decoded[1] as? Int == 42, "Second element should be message ID")
+        #expect(decoded[2] as? String == "Invalid buffer", "Third element should be error message")
+        #expect(decoded[3] is NSNull, "Fourth element should be null (no result)")
     }
     
-    @Test func testEncodeDecodeLargeString() throws {
-        let testString = String(repeating: "a", count: 1000)
-        let encoded = try NvimRPC.encode(testString)
+    @Test func testEncodeDecodeRequestWithLargeData() throws {
+        let largeString = String(repeating: "a", count: 1000)
+        let request = NvimRPC.createRequest(id: 999, method: "nvim_command", params: [largeString])
+        let encoded = try NvimRPC.encode(request)
         let decoded = try NvimRPC.decode(encoded)
         
-        #expect(decoded.count == 1, "Should decode to single element")
-        #expect(decoded[0] as? String == testString, "Decoded large string should match original")
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[2] as? String == "nvim_command", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?[0] as? String == largeString, "Parameter should match large string")
     }
 }
 
