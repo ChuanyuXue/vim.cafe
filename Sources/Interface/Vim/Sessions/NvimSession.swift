@@ -12,7 +12,6 @@ class NvimSession: VimSessionProtocol {
     private var inputPipe: Pipe?
     private var outputPipe: Pipe?
     private var messageId: UInt32 = 0
-    private let ioQueue = DispatchQueue(label: "nvim-client-io", qos: .userInitiated)
     
     func start() throws {
         let process = Process()
@@ -54,73 +53,53 @@ class NvimSession: VimSessionProtocol {
                nvimProcess?.isRunning == true
     }
     
-    func sendInput(_ input: String) throws {
+    private func callRPC<T>(method: String, params: [Any], parser: ([Any]) throws -> T) throws -> T {
         let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_input", params: [input])
+        let request = NvimRPC.createRequest(id: msgId, method: method, params: params)
         try sendMessage(request)
-        _ = try receiveResponse()
+        let response = try receiveResponse()
+        return try parser(response)
+    }
+    
+    func sendInput(_ input: String) throws {
+        try callRPC(method: "nvim_input", params: [input]) { _ in () }
     }
     
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
-        let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_buf_get_lines", 
-                                     params: [buffer, start, end, false])
-        try sendMessage(request)
-        let response = try receiveResponse()
-        
-        guard response.count >= 4,
-              let result = response[3] as? [String] else {
-            throw NvimClientError.invalidResponse("Failed to get buffer lines")
+        try callRPC(method: "nvim_buf_get_lines", params: [buffer, start, end, false]) { response in
+            guard response.count >= 4, let result = response[3] as? [String] else {
+                throw NvimClientError.invalidResponse("Failed to get buffer lines")
+            }
+            return result
         }
-        
-        return result
     }
     
     func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws {
-        let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_buf_set_lines", 
-                                     params: [buffer, start, end, false, lines])
-        try sendMessage(request)
-        _ = try receiveResponse()
+        try callRPC(method: "nvim_buf_set_lines", params: [buffer, start, end, false, lines]) { _ in () }
     }
     
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int) {
-        let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_win_get_cursor", params: [window])
-        try sendMessage(request)
-        let response = try receiveResponse()
-        
-        guard response.count >= 4,
-              let result = response[3] as? [Int],
-              result.count >= 2 else {
-            throw NvimClientError.invalidResponse("Failed to get cursor position")
+        try callRPC(method: "nvim_win_get_cursor", params: [window]) { response in
+            guard response.count >= 4, let result = response[3] as? [Int], result.count >= 2 else {
+                throw NvimClientError.invalidResponse("Failed to get cursor position")
+            }
+            return (row: result[0] - 1, col: result[1])
         }
-        
-        return (row: result[0] - 1, col: result[1])
     }
     
     func setCursorPosition(window: Int, row: Int, col: Int) throws {
-        let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_win_set_cursor", 
-                                     params: [window, [row + 1, col]])
-        try sendMessage(request)
-        _ = try receiveResponse()
+        try callRPC(method: "nvim_win_set_cursor", params: [window, [row + 1, col]]) { _ in () }
     }
     
     func getMode() throws -> (mode: String, blocking: Bool) {
-        let msgId = nextMessageId()
-        let request = createRpcRequest(id: msgId, method: "nvim_get_mode", params: [])
-        try sendMessage(request)
-        let response = try receiveResponse()
-        
-        guard response.count >= 4,
-              let result = response[3] as? [String: Any],
-              let mode = result["mode"] as? String else {
-            throw NvimClientError.invalidResponse("Failed to get current mode")
+        try callRPC(method: "nvim_get_mode", params: []) { response in
+            guard response.count >= 4, let result = response[3] as? [String: Any],
+                  let mode = result["mode"] as? String else {
+                throw NvimClientError.invalidResponse("Failed to get current mode")
+            }
+            let blocking = result["blocking"] as? Bool ?? false
+            return (mode: mode, blocking: blocking)
         }
-        
-        let blocking = result["blocking"] as? Bool ?? false
-        return (mode: mode, blocking: blocking)
     }
     
     private func nextMessageId() -> UInt32 {
@@ -128,81 +107,54 @@ class NvimSession: VimSessionProtocol {
         return messageId
     }
     
-    private func createRpcRequest(id: UInt32, method: String, params: [Any]) -> [Any] {
-        return [0, id, method, params]
-    }
     
     private func sendMessage(_ message: [Any]) throws {
-        guard let inputPipe = inputPipe else {
-            throw NvimClientError.notRunning
-        }
-        
-        let data = try encodeMessagePack(message)
+        guard let inputPipe = inputPipe else { throw NvimClientError.notRunning }
+        let data = try NvimRPC.encode(message)
         inputPipe.fileHandleForWriting.write(data)
     }
     
     private func receiveResponse() throws -> [Any] {
-        guard let outputPipe = outputPipe else {
-            throw NvimClientError.notRunning
-        }
-        
-        let fileHandle = outputPipe.fileHandleForReading
-        
-        // Set up a timeout for reading
-        let timeout = DispatchTime.now() + .seconds(5)
-        var data = Data()
-        
-        // Use availableData to avoid blocking
-        let semaphore = DispatchSemaphore(value: 0)
-        
-        ioQueue.async {
-            // Try to read available data
-            data = fileHandle.availableData
-            semaphore.signal()
-        }
-        
-        let result = semaphore.wait(timeout: timeout)
-        
-        if result == .timedOut {
-            throw NvimClientError.communicationFailed("Timeout waiting for nvim response")
-        }
-        
-        if data.isEmpty {
-            throw NvimClientError.communicationFailed("No data received from nvim")
-        }
-        
-        return try decodeMessagePack(data)
+        guard let outputPipe = outputPipe else { throw NvimClientError.notRunning }
+        let data = outputPipe.fileHandleForReading.availableData
+        guard !data.isEmpty else { throw NvimClientError.communicationFailed("No data received") }
+        return try NvimRPC.decode(data)
+    }
+}
+
+struct NvimRPC {
+    static func createRequest(id: UInt32, method: String, params: [Any]) -> [Any] {
+        return [0, id, method, params]
     }
     
-    private func encodeMessagePack(_ object: Any) throws -> Data {
+    static func encode(_ object: Any) throws -> Data {
         var data = Data()
         try encodeValue(object, to: &data)
         return data
     }
     
-    private func decodeMessagePack(_ data: Data) throws -> [Any] {
+    static func decode(_ data: Data) throws -> [Any] {
         var offset = 0
-        return try decodeArray(from: data, offset: &offset)
-    }
-    
-    private func encodeValue(_ value: Any, to data: inout Data) throws {
-        switch value {
-        case let array as [Any]:
-            try encodeArray(array, to: &data)
-        case let string as String:
-            try encodeString(string, to: &data)
-        case let number as UInt32:
-            try encodeUInt32(number, to: &data)
-        case let number as Int:
-            try encodeInt(number, to: &data)
-        case let bool as Bool:
-            try encodeBool(bool, to: &data)
-        default:
-            throw NvimClientError.communicationFailed("Unsupported type for encoding")
+        let value = try decodeValue(from: data, offset: &offset)
+        if let array = value as? [Any] {
+            return array
+        } else {
+            return [value]
         }
     }
     
-    private func encodeArray(_ array: [Any], to data: inout Data) throws {
+    private static func encodeValue(_ value: Any, to data: inout Data) throws {
+        switch value {
+        case let array as [Any]: try encodeArray(array, to: &data)
+        case let string as String: try encodeString(string, to: &data)
+        case let number as UInt32: try encodeUInt32(number, to: &data)
+        case let number as Int: try encodeInt(number, to: &data)
+        case let bool as Bool: data.append(bool ? 0xC3 : 0xC2)
+        default: throw NvimClientError.communicationFailed("Unsupported type")
+        }
+    }
+    
+    private static func encodeArray(_ array: [Any], to data: inout Data) throws {
         let count = array.count
         if count <= 15 {
             data.append(UInt8(0x90 + count))
@@ -213,16 +165,12 @@ class NvimSession: VimSessionProtocol {
         } else {
             throw NvimClientError.communicationFailed("Array too large")
         }
-        
-        for item in array {
-            try encodeValue(item, to: &data)
-        }
+        for item in array { try encodeValue(item, to: &data) }
     }
     
-    private func encodeString(_ string: String, to data: inout Data) throws {
+    private static func encodeString(_ string: String, to data: inout Data) throws {
         let bytes = Array(string.utf8)
         let count = bytes.count
-        
         if count <= 31 {
             data.append(UInt8(0xA0 + count))
         } else if count <= 0xFF {
@@ -235,11 +183,10 @@ class NvimSession: VimSessionProtocol {
         } else {
             throw NvimClientError.communicationFailed("String too large")
         }
-        
         data.append(contentsOf: bytes)
     }
     
-    private func encodeUInt32(_ value: UInt32, to data: inout Data) throws {
+    private static func encodeUInt32(_ value: UInt32, to data: inout Data) throws {
         if value <= 127 {
             data.append(UInt8(value))
         } else if value <= 0xFF {
@@ -258,344 +205,135 @@ class NvimSession: VimSessionProtocol {
         }
     }
     
-    private func encodeInt(_ value: Int, to data: inout Data) throws {
+    private static func encodeInt(_ value: Int, to data: inout Data) throws {
         if value >= 0 {
             try encodeUInt32(UInt32(value), to: &data)
+        } else if value >= -32 {
+            data.append(UInt8(0x100 + value))
+        } else if value >= -128 {
+            data.append(0xD0)
+            data.append(UInt8(bitPattern: Int8(value)))
+        } else if value >= -32768 {
+            data.append(0xD1)
+            let int16Value = Int16(value)
+            data.append(UInt8(int16Value >> 8))
+            data.append(UInt8(int16Value & 0xFF))
         } else {
-            if value >= -32 {
-                data.append(UInt8(0x100 + value))
-            } else if value >= -128 {
-                data.append(0xD0)
-                data.append(UInt8(bitPattern: Int8(value)))
-            } else if value >= -32768 {
-                data.append(0xD1)
-                let int16Value = Int16(value)
-                data.append(UInt8(int16Value >> 8))
-                data.append(UInt8(int16Value & 0xFF))
-            } else {
-                data.append(0xD2)
-                let int32Value = Int32(value)
-                data.append(UInt8(int32Value >> 24))
-                data.append(UInt8((int32Value >> 16) & 0xFF))
-                data.append(UInt8((int32Value >> 8) & 0xFF))
-                data.append(UInt8(int32Value & 0xFF))
-            }
+            data.append(0xD2)
+            let int32Value = Int32(value)
+            data.append(UInt8(int32Value >> 24))
+            data.append(UInt8((int32Value >> 16) & 0xFF))
+            data.append(UInt8((int32Value >> 8) & 0xFF))
+            data.append(UInt8(int32Value & 0xFF))
         }
     }
     
-    private func encodeBool(_ value: Bool, to data: inout Data) throws {
-        data.append(value ? 0xC3 : 0xC2)
-    }
-    
-    private func decodeArray(from data: Data, offset: inout Int) throws -> [Any] {
-        guard offset < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
+    private static func decodeArray(from data: Data, offset: inout Int) throws -> [Any] {
+        guard offset < data.count else { throw NvimClientError.invalidResponse("Unexpected end") }
         let format = data[offset]
         offset += 1
-        
         let count: Int
         if format >= 0x90 && format <= 0x9F {
             count = Int(format - 0x90)
         } else if format == 0xDC {
-            guard offset + 1 < data.count else {
-                throw NvimClientError.invalidResponse("Unexpected end of data")
-            }
+            guard offset + 1 < data.count else { throw NvimClientError.invalidResponse("Unexpected end") }
             count = Int(data[offset]) << 8 | Int(data[offset + 1])
             offset += 2
         } else {
             throw NvimClientError.invalidResponse("Invalid array format")
         }
-        
         var result: [Any] = []
-        for _ in 0..<count {
-            result.append(try decodeValue(from: data, offset: &offset))
-        }
-        
+        for _ in 0..<count { result.append(try decodeValue(from: data, offset: &offset)) }
         return result
     }
     
-    private func decodeValue(from data: Data, offset: inout Int) throws -> Any {
-        guard offset < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
+    private static func decodeValue(from data: Data, offset: inout Int) throws -> Any {
+        guard offset < data.count else { throw NvimClientError.invalidResponse("Unexpected end") }
         let format = data[offset]
-        
-        // Positive fixint (0x00 - 0x7F)
         if format <= 0x7F {
             offset += 1
             return Int(format)
-        }
-        // Negative fixint (0xE0 - 0xFF)  
-        else if format >= 0xE0 {
+        } else if format >= 0xE0 {
             offset += 1
             return Int(Int8(bitPattern: format))
-        }
-        // Fixmap (0x80 - 0x8F)
-        else if format >= 0x80 && format <= 0x8F {
+        } else if format >= 0x80 && format <= 0x8F {
             return try decodeMap(from: data, offset: &offset)
-        }
-        // Fixarray (0x90 - 0x9F)
-        else if format >= 0x90 && format <= 0x9F {
+        } else if format >= 0x90 && format <= 0x9F {
             return try decodeArray(from: data, offset: &offset)
-        }
-        // Fixstr (0xA0 - 0xBF)
-        else if format >= 0xA0 && format <= 0xBF {
+        } else if format >= 0xA0 && format <= 0xBF {
             return try decodeString(from: data, offset: &offset)
-        }
-        // nil (0xC0)
-        else if format == 0xC0 {
+        } else if format == 0xC0 {
             offset += 1
             return NSNull()
-        }
-        // false (0xC2)
-        else if format == 0xC2 {
+        } else if format == 0xC2 {
             offset += 1
             return false
-        }
-        // true (0xC3)
-        else if format == 0xC3 {
+        } else if format == 0xC3 {
             offset += 1
             return true
-        }
-        // str 8 (0xD9)
-        else if format == 0xD9 {
+        } else if format == 0xD9 {
             return try decodeString8(from: data, offset: &offset)
-        }
-        // str 16 (0xDA)
-        else if format == 0xDA {
+        } else if format == 0xDA {
             return try decodeString16(from: data, offset: &offset)
-        }
-        // str 32 (0xDB)
-        else if format == 0xDB {
-            return try decodeString32(from: data, offset: &offset)
-        }
-        // array 16 (0xDC)
-        else if format == 0xDC {
-            return try decodeArray16(from: data, offset: &offset)
-        }
-        // array 32 (0xDD)
-        else if format == 0xDD {
-            return try decodeArray32(from: data, offset: &offset)
-        }
-        // map 16 (0xDE)
-        else if format == 0xDE {
-            return try decodeMap16(from: data, offset: &offset)
-        }
-        // map 32 (0xDF)
-        else if format == 0xDF {
-            return try decodeMap32(from: data, offset: &offset)
-        }
-        // bin 8/16/32, ext 8/16/32, float 32/64, uint 8/16/32/64, int 8/16/32/64
-        else {
-            throw NvimClientError.invalidResponse("Unsupported format: \(format) (0x\(String(format, radix: 16)))")
+        } else {
+            throw NvimClientError.invalidResponse("Unsupported format: \(format)")
         }
     }
     
-    private func decodeMap(from data: Data, offset: inout Int) throws -> [String: Any] {
+    private static func decodeMap(from data: Data, offset: inout Int) throws -> [String: Any] {
         let format = data[offset]
         offset += 1
-        
-        let count: Int
-        if format >= 0x80 && format <= 0x8F {
-            count = Int(format - 0x80)
-        } else {
-            throw NvimClientError.invalidResponse("Invalid map format")
-        }
-        
+        let count = Int(format - 0x80)
         var result: [String: Any] = [:]
         for _ in 0..<count {
             let key = try decodeValue(from: data, offset: &offset)
             let value = try decodeValue(from: data, offset: &offset)
-            
             if let keyString = key as? String {
                 result[keyString] = value
             } else {
                 throw NvimClientError.invalidResponse("Map key must be string")
             }
         }
-        
         return result
     }
     
-    private func decodeString(from data: Data, offset: inout Int) throws -> String {
+    private static func decodeString(from data: Data, offset: inout Int) throws -> String {
         let format = data[offset]
         offset += 1
-        
-        let length: Int
-        if format >= 0xA0 && format <= 0xBF {
-            length = Int(format - 0xA0)
-        } else {
-            throw NvimClientError.invalidResponse("Invalid string format")
-        }
-        
-        guard offset + length <= data.count else {
-            throw NvimClientError.invalidResponse("String length exceeds data")
-        }
-        
+        let length = Int(format - 0xA0)
+        guard offset + length <= data.count else { throw NvimClientError.invalidResponse("String length exceeds data") }
         let stringData = data[offset..<offset + length]
         offset += length
-        
-        guard let string = String(data: stringData, encoding: .utf8) else {
-            throw NvimClientError.invalidResponse("Invalid UTF-8 string")
-        }
-        
+        guard let string = String(data: stringData, encoding: .utf8) else { throw NvimClientError.invalidResponse("Invalid UTF-8") }
         return string
     }
     
-    private func decodeString8(from data: Data, offset: inout Int) throws -> String {
-        offset += 1 // Skip format byte
-        guard offset < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
+    private static func decodeString8(from data: Data, offset: inout Int) throws -> String {
+        offset += 1
+        guard offset < data.count else { throw NvimClientError.invalidResponse("Unexpected end") }
         let length = Int(data[offset])
         offset += 1
-        
-        guard offset + length <= data.count else {
-            throw NvimClientError.invalidResponse("String length exceeds data")
-        }
-        
+        guard offset + length <= data.count else { throw NvimClientError.invalidResponse("String length exceeds data") }
         let stringData = data[offset..<offset + length]
         offset += length
-        
-        guard let string = String(data: stringData, encoding: .utf8) else {
-            throw NvimClientError.invalidResponse("Invalid UTF-8 string")
-        }
-        
+        guard let string = String(data: stringData, encoding: .utf8) else { throw NvimClientError.invalidResponse("Invalid UTF-8") }
         return string
     }
     
-    private func decodeString16(from data: Data, offset: inout Int) throws -> String {
-        offset += 1 // Skip format byte
-        guard offset + 1 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
+    private static func decodeString16(from data: Data, offset: inout Int) throws -> String {
+        offset += 1
+        guard offset + 1 < data.count else { throw NvimClientError.invalidResponse("Unexpected end") }
         let length = Int(data[offset]) << 8 | Int(data[offset + 1])
         offset += 2
-        
-        guard offset + length <= data.count else {
-            throw NvimClientError.invalidResponse("String length exceeds data")
-        }
-        
+        guard offset + length <= data.count else { throw NvimClientError.invalidResponse("String length exceeds data") }
         let stringData = data[offset..<offset + length]
         offset += length
-        
-        guard let string = String(data: stringData, encoding: .utf8) else {
-            throw NvimClientError.invalidResponse("Invalid UTF-8 string")
-        }
-        
+        guard let string = String(data: stringData, encoding: .utf8) else { throw NvimClientError.invalidResponse("Invalid UTF-8") }
         return string
-    }
-    
-    private func decodeString32(from data: Data, offset: inout Int) throws -> String {
-        offset += 1 // Skip format byte
-        guard offset + 3 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
-        let length = Int(data[offset]) << 24 | Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
-        offset += 4
-        
-        guard offset + length <= data.count else {
-            throw NvimClientError.invalidResponse("String length exceeds data")
-        }
-        
-        let stringData = data[offset..<offset + length]
-        offset += length
-        
-        guard let string = String(data: stringData, encoding: .utf8) else {
-            throw NvimClientError.invalidResponse("Invalid UTF-8 string")
-        }
-        
-        return string
-    }
-    
-    private func decodeArray16(from data: Data, offset: inout Int) throws -> [Any] {
-        offset += 1 // Skip format byte
-        guard offset + 1 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
-        let count = Int(data[offset]) << 8 | Int(data[offset + 1])
-        offset += 2
-        
-        var result: [Any] = []
-        for _ in 0..<count {
-            result.append(try decodeValue(from: data, offset: &offset))
-        }
-        
-        return result
-    }
-    
-    private func decodeArray32(from data: Data, offset: inout Int) throws -> [Any] {
-        offset += 1 // Skip format byte
-        guard offset + 3 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
-        let count = Int(data[offset]) << 24 | Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
-        offset += 4
-        
-        var result: [Any] = []
-        for _ in 0..<count {
-            result.append(try decodeValue(from: data, offset: &offset))
-        }
-        
-        return result
-    }
-    
-    private func decodeMap16(from data: Data, offset: inout Int) throws -> [String: Any] {
-        offset += 1 // Skip format byte
-        guard offset + 1 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
-        let count = Int(data[offset]) << 8 | Int(data[offset + 1])
-        offset += 2
-        
-        var result: [String: Any] = [:]
-        for _ in 0..<count {
-            let key = try decodeValue(from: data, offset: &offset)
-            let value = try decodeValue(from: data, offset: &offset)
-            
-            if let keyString = key as? String {
-                result[keyString] = value
-            } else {
-                throw NvimClientError.invalidResponse("Map key must be string")
-            }
-        }
-        
-        return result
-    }
-    
-    private func decodeMap32(from data: Data, offset: inout Int) throws -> [String: Any] {
-        offset += 1 // Skip format byte
-        guard offset + 3 < data.count else {
-            throw NvimClientError.invalidResponse("Unexpected end of data")
-        }
-        
-        let count = Int(data[offset]) << 24 | Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
-        offset += 4
-        
-        var result: [String: Any] = [:]
-        for _ in 0..<count {
-            let key = try decodeValue(from: data, offset: &offset)
-            let value = try decodeValue(from: data, offset: &offset)
-            
-            if let keyString = key as? String {
-                result[keyString] = value
-            } else {
-                throw NvimClientError.invalidResponse("Map key must be string")
-            }
-        }
-        
-        return result
     }
 }
+
+
 
 enum NvimClientError: Error {
     case startupFailed(Error)

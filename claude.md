@@ -17,3 +17,6 @@ Open-Closed Principle: software entities should be open for extension but closed
 Liskov Substitution Principle: derived classes must be substitutable for their base types.
 Interface Segregation Principle: prefer many specific interfaces over one general-purpose interface.
 Dependency Inversion Principle: depend on abstractions, not concrete implementations.
+
+Test Code Style
+When you write test code, write in /Tests directory and follow the style of swift testing framework, don't use XCTest or printout by yourself.
