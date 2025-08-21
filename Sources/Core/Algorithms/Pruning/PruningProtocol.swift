@@ -6,5 +6,5 @@ Created:  2025-08-20T20:06:24.145Z
 */
 
 protocol PruningProtocol {
-    func shouldPrune(node: NodeProtocol, pool: NodePoolProtocol) -> Bool
+    func shouldPrune(state: VimState, target: VimState, pool: NodePoolProtocol) -> Bool
 }

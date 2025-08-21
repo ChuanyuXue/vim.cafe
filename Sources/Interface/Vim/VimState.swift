@@ -13,6 +13,11 @@ struct VimState: Hashable {
     let mode: VimMode
 }
 
+struct VimCursor: Hashable {
+    let row: Int
+    let col: Int
+}
+
 enum VimMode: String, CaseIterable {
     case normal = "n"
     case operatorPending = "no"
@@ -75,9 +80,4 @@ enum VimMode: String, CaseIterable {
             return "t"
         }
     }
-}
-
-struct VimCursor: Hashable {
-    let row: Int
-    let col: Int
 }

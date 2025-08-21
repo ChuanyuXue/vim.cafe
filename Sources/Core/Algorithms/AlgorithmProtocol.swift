@@ -12,11 +12,9 @@ protocol AlgorithmProtocol {
 }
 
 struct SearchOptions {
-    let maxIterations: Int
-    let maxDepth: Int
     let timeOut: TimeInterval
 
-    let bound: BoundProtocol
+    let neighbors: NeighborsProtocol
     let pruning: PruningProtocol
     let heuristic: HeuristicProtocol
 }

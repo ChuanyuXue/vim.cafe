@@ -28,30 +28,35 @@ enum VimKeystroke: String, CaseIterable {
     case escape = "<Esc>", enter = "<CR>", backspace = "<BS>", delete = "<Del>", tab = "<Tab>", shiftTab = "<S-Tab>"
     case spaceKey = "<Space>", insert = "<Insert>"
     
+
+    /**!SECTION
+    Only use basic keys for now.
+    */
+
     // Arrow keys
-    case up = "<Up>", down = "<Down>", left = "<Left>", right = "<Right>"
+    // case up = "<Up>", down = "<Down>", left = "<Left>", right = "<Right>"
     
-    // Navigation
-    case home = "<Home>", end = "<End>", pageUp = "<PageUp>", pageDown = "<PageDown>"
+    // // Navigation
+    // case home = "<Home>", end = "<End>", pageUp = "<PageUp>", pageDown = "<PageDown>"
     
-    // Function keys
-    case f1 = "<F1>", f2 = "<F2>", f3 = "<F3>", f4 = "<F4>", f5 = "<F5>", f6 = "<F6>"
-    case f7 = "<F7>", f8 = "<F8>", f9 = "<F9>", f10 = "<F10>", f11 = "<F11>", f12 = "<F12>"
+    // // Function keys
+    // case f1 = "<F1>", f2 = "<F2>", f3 = "<F3>", f4 = "<F4>", f5 = "<F5>", f6 = "<F6>"
+    // case f7 = "<F7>", f8 = "<F8>", f9 = "<F9>", f10 = "<F10>", f11 = "<F11>", f12 = "<F12>"
     
-    // Ctrl combinations
-    case ctrlA = "<C-a>", ctrlB = "<C-b>", ctrlC = "<C-c>", ctrlD = "<C-d>", ctrlE = "<C-e>", ctrlF = "<C-f>", ctrlG = "<C-g>"
-    case ctrlH = "<C-h>", ctrlI = "<C-i>", ctrlJ = "<C-j>", ctrlK = "<C-k>", ctrlL = "<C-l>", ctrlM = "<C-m>", ctrlN = "<C-n>"
-    case ctrlO = "<C-o>", ctrlP = "<C-p>", ctrlQ = "<C-q>", ctrlR = "<C-r>", ctrlS = "<C-s>", ctrlT = "<C-t>", ctrlU = "<C-u>"
-    case ctrlV = "<C-v>", ctrlW = "<C-w>", ctrlX = "<C-x>", ctrlY = "<C-y>", ctrlZ = "<C-z>"
+    // // Ctrl combinations
+    // case ctrlA = "<C-a>", ctrlB = "<C-b>", ctrlC = "<C-c>", ctrlD = "<C-d>", ctrlE = "<C-e>", ctrlF = "<C-f>", ctrlG = "<C-g>"
+    // case ctrlH = "<C-h>", ctrlI = "<C-i>", ctrlJ = "<C-j>", ctrlK = "<C-k>", ctrlL = "<C-l>", ctrlM = "<C-m>", ctrlN = "<C-n>"
+    // case ctrlO = "<C-o>", ctrlP = "<C-p>", ctrlQ = "<C-q>", ctrlR = "<C-r>", ctrlS = "<C-s>", ctrlT = "<C-t>", ctrlU = "<C-u>"
+    // case ctrlV = "<C-v>", ctrlW = "<C-w>", ctrlX = "<C-x>", ctrlY = "<C-y>", ctrlZ = "<C-z>"
     
-    // Meta/Alt combinations
-    case metaA = "<M-a>", metaB = "<M-b>", metaC = "<M-c>", metaD = "<M-d>", metaE = "<M-e>", metaF = "<M-f>", metaG = "<M-g>"
-    case metaH = "<M-h>", metaI = "<M-i>", metaJ = "<M-j>", metaK = "<M-k>", metaL = "<M-l>", metaM = "<M-m>", metaN = "<M-n>"
-    case metaO = "<M-o>", metaP = "<M-p>", metaQ = "<M-q>", metaR = "<M-r>", metaS = "<M-s>", metaT = "<M-t>", metaU = "<M-u>"
-    case metaV = "<M-v>", metaW = "<M-w>", metaX = "<M-x>", metaY = "<M-y>", metaZ = "<M-z>"
+    // // Meta/Alt combinations
+    // case metaA = "<M-a>", metaB = "<M-b>", metaC = "<M-c>", metaD = "<M-d>", metaE = "<M-e>", metaF = "<M-f>", metaG = "<M-g>"
+    // case metaH = "<M-h>", metaI = "<M-i>", metaJ = "<M-j>", metaK = "<M-k>", metaL = "<M-l>", metaM = "<M-m>", metaN = "<M-n>"
+    // case metaO = "<M-o>", metaP = "<M-p>", metaQ = "<M-q>", metaR = "<M-r>", metaS = "<M-s>", metaT = "<M-t>", metaU = "<M-u>"
+    // case metaV = "<M-v>", metaW = "<M-w>", metaX = "<M-x>", metaY = "<M-y>", metaZ = "<M-z>"
     
-    // Directional modifiers
-    case ctrlLeft = "<C-Left>", ctrlRight = "<C-Right>", ctrlUp = "<C-Up>", ctrlDown = "<C-Down>"
-    case shiftLeft = "<S-Left>", shiftRight = "<S-Right>", shiftUp = "<S-Up>", shiftDown = "<S-Down>"
-    case metaLeft = "<M-Left>", metaRight = "<M-Right>", metaUp = "<M-Up>", metaDown = "<M-Down>"
+    // // Directional modifiers
+    // case ctrlLeft = "<C-Left>", ctrlRight = "<C-Right>", ctrlUp = "<C-Up>", ctrlDown = "<C-Down>"
+    // case shiftLeft = "<S-Left>", shiftRight = "<S-Right>", shiftUp = "<S-Up>", shiftDown = "<S-Down>"
+    // case metaLeft = "<M-Left>", metaRight = "<M-Right>", metaUp = "<M-Up>", metaDown = "<M-Down>"
 }

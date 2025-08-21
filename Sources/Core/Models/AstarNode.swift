@@ -1,26 +1,27 @@
 /*
 Author: <Chuanyu> (skewcy@gmail.com)
-AstarNode.swift (c) 2025
+AStarNode.swift (c) 2025
 Desc: description
 Created:  2025-08-20T19:31:48.305Z
 */
 
-struct AstarNode: NodeProtocol {
+struct AStarNode: NodeProtocol {
     let state: VimState
     let keystrokePath: [VimKeystroke]
+    let parent: NodeProtocol?
 
-    private let g: Double
-    private let h: Double
+    private let cost: Double
+    private let heuristic: Double
 
-    var weight: Double {
-        return g + h
+    var priority: Double {
+        return cost + heuristic
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(keystrokePath)
+        hasher.combine(state)
     }
 
-    static func == (lhs: AstarNode, rhs: AstarNode) -> Bool {
-        return lhs.keystrokePath == rhs.keystrokePath
+    static func == (lhs: AStarNode, rhs: AStarNode) -> Bool {
+        return lhs.state == rhs.state
     }
 }
