@@ -10,9 +10,13 @@ import Darwin
 
 class VimSession: VimSessionProtocol {
     private let vimPath: String
+    private let gvimPath: String?
     private let vimrcPath: String
     private var isSessionRunning = false
     private var tempDirectory: URL?
+    private var serverName: String?
+    private var serverProcess: Process?
+    private var useClientServer: Bool = false
     
     // Current session state
     private var currentBuffer: [String] = [""]
@@ -23,18 +27,24 @@ class VimSession: VimSessionProtocol {
         // Find vim executable
         if let customPath = vimPath {
             self.vimPath = customPath
+            self.gvimPath = nil
         } else {
-            // Try common vim locations - prefer versions that likely support client-server
-            let possiblePaths = [
-                "/opt/homebrew/bin/vim",
-                "/usr/local/bin/vim", 
-                "/usr/bin/vim"
+            // Prefer MacVim for better client-server support
+            let possibleVimPaths = [
+                "/opt/homebrew/bin/vim",    // MacVim via Homebrew
+                "/usr/local/bin/vim",       // MacVim via manual install
+                "/usr/bin/vim"              // System vim
             ]
             
-            self.vimPath = possiblePaths.first { FileManager.default.fileExists(atPath: $0) } ?? "/usr/bin/vim"
+            let possibleGvimPaths = [
+                "/opt/homebrew/bin/gvim",   // MacVim GUI via Homebrew
+                "/usr/local/bin/gvim",      // MacVim GUI via manual install
+                "/Applications/MacVim.app/Contents/bin/gvim"  // MacVim app
+            ]
+            
+            self.vimPath = possibleVimPaths.first { FileManager.default.fileExists(atPath: $0) } ?? "/usr/bin/vim"
+            self.gvimPath = possibleGvimPaths.first { FileManager.default.fileExists(atPath: $0) }
         }
-        
-
         
         // Get the path to vimgolf.vimrc 
         let bundlePath = Bundle.main.bundlePath
@@ -54,6 +64,20 @@ class VimSession: VimSessionProtocol {
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
         self.tempDirectory = tempDir
         
+        // Try to use client-server mode if MacVim GUI is available
+        if let gvimPath = gvimPath {
+            do {
+                try startMacVimServer(gvimPath: gvimPath)
+                useClientServer = true
+            } catch {
+                // Fall back to script mode if server setup fails
+                print("Warning: Could not start MacVim server, falling back to script mode: \(error)")
+                useClientServer = false
+            }
+        } else {
+            useClientServer = false
+        }
+        
         // Initialize session state
         currentBuffer = [""]
         currentCursor = (0, 0)
@@ -66,12 +90,21 @@ class VimSession: VimSessionProtocol {
     func stop() {
         guard isSessionRunning else { return }
         
+        // Stop the MacVim server if running
+        if useClientServer, let serverName = serverName {
+            try? sendServerCommand(":qall!")
+            serverProcess?.terminate()
+            serverProcess = nil
+        }
+        
         // Clean up temporary directory
         if let tempDir = tempDirectory {
             try? FileManager.default.removeItem(at: tempDir)
             tempDirectory = nil
         }
         
+        useClientServer = false
+        serverName = nil
         isSessionRunning = false
     }
     
@@ -80,15 +113,46 @@ class VimSession: VimSessionProtocol {
     }
     
     func sendInput(_ input: String) throws {
-        guard let tempDir = tempDirectory else {
+        guard isSessionRunning else {
             throw VimSessionError.notRunning
         }
         
-        // Execute the command and update state
-        let result = try executeVimCommand(input, tempDir: tempDir)
-        currentBuffer = result.finalText.isEmpty ? [""] : result.finalText.components(separatedBy: "\n")
-        currentCursor = result.cursorPosition
-        currentMode = result.mode
+        if useClientServer {
+            // Use MacVim client-server for real mode querying
+            var commandToSend = input
+            
+            // Auto-complete colon commands that don't end with CR
+            if input.hasPrefix(":") && !input.contains("<CR>") && !input.contains("\\<CR>") && !input.hasSuffix("\n") && !input.hasSuffix("\r") {
+                commandToSend = input + "<CR>"
+            }
+            
+            try sendServerCommand(commandToSend)
+            
+            // Small delay to let command complete
+            Thread.sleep(forTimeInterval: 0.05)
+            
+            // Query the real mode from vim
+            let realMode = try queryServerMode()
+            currentMode = realMode
+            
+            // Update cursor position
+            let cursorInfo = try queryServerCursor()
+            currentCursor = cursorInfo
+            
+            // Update buffer content (simplified for now)
+            // In a full implementation, you'd query buffer content too
+            
+        } else {
+            // Fall back to script-based execution
+            guard let tempDir = tempDirectory else {
+                throw VimSessionError.notRunning
+            }
+            
+            let result = try executeVimCommand(input, tempDir: tempDir)
+            currentBuffer = result.finalText.isEmpty ? [""] : result.finalText.components(separatedBy: "\n")
+            currentCursor = result.cursorPosition
+            currentMode = result.mode
+        }
     }
     
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
@@ -193,6 +257,179 @@ class VimSession: VimSessionProtocol {
         return (mode: currentMode, blocking: false)
     }
     
+    // MARK: - MacVim Client-Server Methods
+    
+    private func startMacVimServer(gvimPath: String) throws {
+        let uniqueServerName = "VIMSESSION_\(UUID().uuidString.replacingOccurrences(of: "-", with: "_"))"
+        
+        // Create a temporary file for the server
+        guard let tempDir = tempDirectory else {
+            throw VimSessionError.notRunning
+        }
+        let tempFile = tempDir.appendingPathComponent("server_buffer.txt")
+        try "".write(to: tempFile, atomically: true, encoding: .utf8)
+        
+        // Start MacVim GUI as server
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gvimPath)
+        process.arguments = [
+            "-u", vimrcPath,
+            "--servername", uniqueServerName,
+            "--remote-tab-silent", tempFile.path
+        ]
+        
+        // Redirect output to avoid GUI dialogs
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        
+        try process.run()
+        self.serverProcess = process
+        self.serverName = uniqueServerName
+        
+        // Wait for server to be ready
+        var attempts = 0
+        let maxAttempts = 10
+        
+        while attempts < maxAttempts {
+            Thread.sleep(forTimeInterval: 0.2)
+            attempts += 1
+            
+            do {
+                let servers = try listVimServers()
+                if servers.contains(uniqueServerName) {
+                    // Server is ready
+                    return
+                }
+            } catch {
+                if attempts == maxAttempts {
+                    throw VimSessionError.startupFailed(error)
+                }
+            }
+        }
+        
+        throw VimSessionError.startupFailed(NSError(domain: "VimSession", code: 1, userInfo: [NSLocalizedDescriptionKey: "MacVim server failed to start after \(maxAttempts) attempts"]))
+    }
+    
+    private func listVimServers() throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: vimPath)
+        process.arguments = ["--serverlist"]
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        
+        if process.terminationStatus != 0 {
+            let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw VimSessionError.communicationFailed("Failed to list servers: \(error)")
+        }
+        
+        return String(data: outputData, encoding: .utf8) ?? ""
+    }
+    
+    private func sendServerCommand(_ command: String) throws {
+        guard let serverName = serverName else {
+            throw VimSessionError.notRunning
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: vimPath)
+        process.arguments = [
+            "--servername", serverName,
+            "--remote-send", command
+        ]
+        
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw VimSessionError.communicationFailed("Server send failed: \(error)")
+        }
+    }
+    
+    private func queryServerMode() throws -> String {
+        guard let serverName = serverName else {
+            throw VimSessionError.notRunning
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: vimPath)
+        process.arguments = [
+            "--servername", serverName,
+            "--remote-expr", "mode()"
+        ]
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw VimSessionError.communicationFailed("Mode query failed: \(error)")
+        }
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "n"
+    }
+    
+    private func queryServerCursor() throws -> (row: Int, col: Int) {
+        guard let serverName = serverName else {
+            throw VimSessionError.notRunning
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: vimPath)
+        process.arguments = [
+            "--servername", serverName,
+            "--remote-expr", "string(getpos('.'))"
+        ]
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw VimSessionError.communicationFailed("Cursor query failed: \(error)")
+        }
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let result = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        // Parse cursor position from getpos('.') result: ['0', 'line', 'col', '0']
+        let components = result.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "").components(separatedBy: ",")
+        
+        if components.count >= 4 {
+            let row = max(0, (Int(components[1].trimmingCharacters(in: .whitespaces)) ?? 1) - 1)
+            let col = max(0, (Int(components[2].trimmingCharacters(in: .whitespaces)) ?? 1) - 1)
+            return (row: row, col: col)
+        }
+        
+        return (row: 0, col: 0)
+    }
+    
     // MARK: - Private Helper Methods
     
 
@@ -223,10 +460,10 @@ class VimSession: VimSessionProtocol {
     private func executeVimWithScript(command: String, inputFile: URL, outputFile: URL, cursorFile: URL) throws -> VimExecutionResult {
         let escapedCommand = escapeVimInput(command)
         
-        // Determine the expected mode based on the command
-        let expectedMode = determineExpectedMode(for: command)
+        // Smart mode tracking: analyze the command sequence to determine the final mode
+        let finalMode = analyzeCommandForFinalMode(command: command, currentMode: currentMode)
         
-        // Execute vim in Ex mode (the working approach)
+        // Execute vim in Ex mode - this approach is reliable and fast
         let process = Process()
         process.executableURL = URL(fileURLWithPath: vimPath)
         process.arguments = [
@@ -235,7 +472,7 @@ class VimSession: VimSessionProtocol {
             "-c", "call cursor(\(currentCursor.row + 1), \(currentCursor.col + 1))",
             "-c", "execute \"normal! \(escapedCommand)\"",
             "-c", "let cursor_pos = getpos('.')",
-            "-c", "call writefile([cursor_pos[1] . ',' . cursor_pos[2] . ',' . '\(expectedMode)'], '\(cursorFile.path)')",
+            "-c", "call writefile([cursor_pos[1] . ',' . cursor_pos[2] . ',' . '\(finalMode)'], '\(cursorFile.path)')",
             "-c", "write! \(outputFile.path)",
             "-c", "qall!",
             inputFile.path
@@ -362,29 +599,113 @@ class VimSession: VimSessionProtocol {
         }
     }
     
-    private func determineExpectedMode(for command: String) -> String {
-        // Analyze the command to determine the expected final mode
-        let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    
+    private func analyzeCommandForFinalMode(command: String, currentMode: String) -> String {
+        // This method analyzes a vim command sequence to predict the final mode
+        // It handles complex sequences and mode transitions properly
         
-        // Check for mode-changing commands
-        if trimmedCommand == "i" || trimmedCommand.hasPrefix("i") {
-            return "i"  // Insert mode
-        } else if trimmedCommand == "a" || trimmedCommand.hasPrefix("a") {
-            return "i"  // Insert mode (append)
-        } else if trimmedCommand == "o" || trimmedCommand == "O" {
-            return "i"  // Insert mode (open new line)
-        } else if trimmedCommand == "R" || trimmedCommand.hasPrefix("R") {
-            return "R"  // Replace mode
-        } else if trimmedCommand == "v" || trimmedCommand == "V" || trimmedCommand.contains("v") {
-            return "v"  // Visual mode
-        } else if trimmedCommand.contains("\u{1b}") || trimmedCommand.contains("\\<Esc>") {
-            return "n"  // Return to normal mode
-        } else if trimmedCommand.hasPrefix(":") {
-            return "n"  // Command mode returns to normal
+        var mode = currentMode
+        var i = command.startIndex
+        
+        while i < command.endIndex {
+            let char = command[i]
+            
+            switch mode {
+            case "n": // Normal mode
+                switch char {
+                case "i":
+                    // Check if it's just 'i' or 'i' followed by text
+                    mode = "i"
+                case "a":
+                    mode = "i"
+                case "o", "O":
+                    mode = "i"
+                case "A":
+                    mode = "i"
+                case "I":
+                    mode = "i"
+                case "v":
+                    mode = "v"
+                case "V":
+                    mode = "V"
+                case "R":
+                    mode = "R"
+                case ":":
+                    // Command mode - scan to end of line, CR, or <CR> pattern
+                    while i < command.endIndex {
+                        let remaining = String(command[i...])
+                        if remaining.hasPrefix("<CR>") || remaining.hasPrefix("\\<CR>") {
+                            // Found command completion - return to normal mode
+                            mode = "n"
+                            if remaining.hasPrefix("<CR>") {
+                                i = command.index(i, offsetBy: 3)  // Skip <CR>
+                            } else {
+                                i = command.index(i, offsetBy: 5)  // Skip \<CR>
+                            }
+                            break
+                        } else if command[i] == "\n" || command[i] == "\r" {
+                            // Line ending completes command
+                            mode = "n"
+                            break
+                        } else {
+                            i = command.index(after: i)
+                        }
+                    }
+                    continue
+                default:
+                    // Most normal mode commands keep us in normal mode
+                    break
+                }
+                
+            case "i": // Insert mode
+                // Check for escape sequences
+                if char == "\u{1b}" || (char == "\\" && i < command.index(before: command.endIndex) && command[command.index(after: i)] == "<") {
+                    // Look for <Esc> pattern
+                    let remaining = String(command[i...])
+                    if remaining.hasPrefix("\\<Esc>") || remaining.hasPrefix("\u{1b}") {
+                        mode = "n"
+                        // Skip the escape sequence
+                        if remaining.hasPrefix("\\<Esc>") {
+                            i = command.index(i, offsetBy: 5) // Skip \<Esc>
+                            continue
+                        }
+                    }
+                }
+                // In insert mode, most characters just insert text
+                
+            case "v", "V": // Visual modes
+                if char == "\u{1b}" || (char == "\\" && i < command.index(before: command.endIndex) && command[command.index(after: i)] == "<") {
+                    let remaining = String(command[i...])
+                    if remaining.hasPrefix("\\<Esc>") || remaining.hasPrefix("\u{1b}") {
+                        mode = "n"
+                        if remaining.hasPrefix("\\<Esc>") {
+                            i = command.index(i, offsetBy: 5)
+                            continue
+                        }
+                    }
+                }
+                
+            case "R": // Replace mode
+                if char == "\u{1b}" || (char == "\\" && i < command.index(before: command.endIndex) && command[command.index(after: i)] == "<") {
+                    let remaining = String(command[i...])
+                    if remaining.hasPrefix("\\<Esc>") || remaining.hasPrefix("\u{1b}") {
+                        mode = "n"
+                        if remaining.hasPrefix("\\<Esc>") {
+                            i = command.index(i, offsetBy: 5)
+                            continue
+                        }
+                    }
+                }
+                
+            default:
+                break
+            }
+            
+            i = command.index(after: i)
         }
         
-        // For most movement and text manipulation commands, we stay in normal mode
-        return "n"
+        return mode
     }
     
     private func escapeVimInput(_ input: String) -> String {
