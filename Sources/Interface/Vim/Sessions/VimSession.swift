@@ -209,9 +209,10 @@ class VimSession: VimSessionProtocol {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: gvimPath)
         process.arguments = [
-            "--servername", uniqueServerName,
-            "--remote-tab-silent", tempFile.path,
             "-u", vimrcPath,
+            "--servername", uniqueServerName,
+            "-f",
+            "--remote-tab", tempFile.path,
         ]
         
         // Redirect output to avoid GUI dialogs
