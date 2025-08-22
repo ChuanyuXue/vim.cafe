@@ -21,7 +21,6 @@ class NvimSession: VimSessionProtocol {
         
         process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")
         
-        // Get the path to vimgolf.vimrc relative to the project root
         let vimrcPath = Bundle.main.bundlePath + "/../../Sources/Interface/Golf/vimgolf.vimrc"
         process.arguments = ["--headless", "--embed", "-u", vimrcPath]
         process.standardInput = inputPipe

@@ -335,7 +335,7 @@ struct VimSessionMultipleInstanceTests {
 struct VimSessionSpecificTests {
     
     @Test func testVimSessionWithCustomGvimPath() throws {
-        let session = VimSession(gvimPath: "/opt/homebrew/bin/gvim")
+        let session = VimSession()
         
         #expect(!session.isRunning(), "Session should not be running initially")
     }
@@ -348,6 +348,7 @@ struct VimSessionSpecificTests {
         
         // Test that we can execute Vimscript commands through the session
         try session.sendInput(":echo 'test'")
+        try session.sendInput("<CR>")
         try await Task.sleep(for: .milliseconds(100))
         
         // Should still be in normal mode after command

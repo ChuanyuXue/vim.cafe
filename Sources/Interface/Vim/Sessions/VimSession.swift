@@ -20,24 +20,9 @@ class VimSession: VimSessionProtocol {
     private var currentCursor: (row: Int, col: Int) = (0, 0)
     private var currentMode: String = "n"
     
-    init(gvimPath: String? = nil) {
-        if let customPath = gvimPath {
-            self.gvimPath = customPath
-        } else {
-            let possibleGvimPaths = [
-                "/opt/homebrew/bin/gvim",
-                "/usr/local/bin/gvim",
-                "/Applications/MacVim.app/Contents/bin/gvim"
-            ]
-            
-            guard let foundPath = possibleGvimPaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
-                fatalError("gvim not found in any of the expected locations")
-            }
-            self.gvimPath = foundPath
-        }
-        
-        let bundlePath = Bundle.main.bundlePath
-        self.vimrcPath = bundlePath.isEmpty ? "Sources/Interface/Golf/vimgolf.vimrc" : bundlePath + "/../../Sources/Interface/Golf/vimgolf.vimrc"
+    init() {
+        self.gvimPath = "/opt/homebrew/bin/gvim"
+        self.vimrcPath = Bundle.main.bundlePath + "/../../Sources/Interface/Golf/vimgolf.vimrc"
     }
     
     func start() throws {
@@ -58,7 +43,11 @@ class VimSession: VimSessionProtocol {
     func stop() {
         guard isSessionRunning else { return }
         
-        try? sendServerCommand(":qall!")
+        if let serverName = serverName {
+            try? sendServerCommand(":qall!<CR>")
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
         serverProcess?.terminate()
         serverProcess = nil
         
@@ -80,13 +69,7 @@ class VimSession: VimSessionProtocol {
             throw VimSessionError.notRunning
         }
         
-        var commandToSend = input
-        
-        if input.hasPrefix(":") && !input.contains("<CR>") && !input.contains("\\<CR>") && !input.hasSuffix("\n") && !input.hasSuffix("\r") {
-            commandToSend = input + "<CR>"
-        }
-        
-        try sendServerCommand(commandToSend)
+        try sendServerCommand(input)
         
         Thread.sleep(forTimeInterval: 0.05)
         
