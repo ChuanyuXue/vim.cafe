@@ -205,13 +205,13 @@ class VimSession: VimSessionProtocol {
         let tempFile = tempDir.appendingPathComponent("server_buffer.txt")
         try "".write(to: tempFile, atomically: true, encoding: .utf8)
         
-        // Start MacVim GUI as server
+        // Start MacVim headless as server
         let process = Process()
         process.executableURL = URL(fileURLWithPath: gvimPath)
         process.arguments = [
-            "-u", vimrcPath,
             "--servername", uniqueServerName,
-            "--remote-tab-silent", tempFile.path
+            "--remote-tab-silent", tempFile.path,
+            "-u", vimrcPath,
         ]
         
         // Redirect output to avoid GUI dialogs
