@@ -15,10 +15,6 @@ class VimSession: VimSessionProtocol {
     private var serverName: String?
     private var serverProcess: Process?
     
-    // Current session state
-    private var currentBuffer: [String] = [""]
-    private var currentCursor: (row: Int, col: Int) = (0, 0)
-    private var currentMode: String = "n"
     
     init() {
         self.gvimPath = "/opt/homebrew/bin/gvim"
@@ -34,16 +30,18 @@ class VimSession: VimSessionProtocol {
         
         try startMacVimServer()
         
-        currentBuffer = [""]
-        currentCursor = (0, 0)
-        currentMode = "n"
+        // Initialize with empty buffer and ensure normal mode
+        Thread.sleep(forTimeInterval: 0.1)
+        try sendServerCommand("\u{1b}:call setline(1, '')<CR>")
+        try sendServerCommand("\u{1b}")
+        
         isSessionRunning = true
     }
     
     func stop() {
         guard isSessionRunning else { return }
         
-        if let serverName = serverName {
+        if serverName != nil {
             try? sendServerCommand(":qall!<CR>")
             Thread.sleep(forTimeInterval: 0.1)
         }
@@ -72,12 +70,6 @@ class VimSession: VimSessionProtocol {
         try sendServerCommand(input)
         
         Thread.sleep(forTimeInterval: 0.05)
-        
-        let realMode = try queryServerMode()
-        currentMode = realMode
-        
-        let cursorInfo = try queryServerCursor()
-        currentCursor = cursorInfo
     }
     
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
@@ -89,14 +81,7 @@ class VimSession: VimSessionProtocol {
             throw VimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
         }
         
-        let actualEnd = end == -1 ? currentBuffer.count : min(end, currentBuffer.count)
-        let actualStart = max(0, start)
-        
-        guard actualStart <= actualEnd && actualStart < currentBuffer.count else {
-            return []
-        }
-        
-        return Array(currentBuffer[actualStart..<min(actualEnd, currentBuffer.count)])
+        return try queryBufferLines(start: start, end: end)
     }
     
     func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws {
@@ -108,40 +93,7 @@ class VimSession: VimSessionProtocol {
             throw VimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
         }
         
-        let actualStart = max(0, start)
-        let actualEnd = end == -1 ? currentBuffer.count : min(end, currentBuffer.count)
-        
-        // Replace the range with new lines
-        var newBuffer = currentBuffer
-        
-        // Remove old lines
-        if actualEnd > actualStart && actualStart < newBuffer.count {
-            newBuffer.removeSubrange(actualStart..<min(actualEnd, newBuffer.count))
-        }
-        
-        // Insert new lines
-        for (index, line) in lines.enumerated() {
-            if actualStart + index <= newBuffer.count {
-                newBuffer.insert(line, at: actualStart + index)
-            } else {
-                newBuffer.append(line)
-            }
-        }
-        
-        // Ensure at least one line
-        if newBuffer.isEmpty {
-            newBuffer = [""]
-        }
-        
-        currentBuffer = newBuffer
-        
-        // Adjust cursor if needed
-        if currentCursor.row >= currentBuffer.count {
-            currentCursor.row = max(0, currentBuffer.count - 1)
-        }
-        if currentCursor.col >= currentBuffer[currentCursor.row].count {
-            currentCursor.col = max(0, currentBuffer[currentCursor.row].count - 1)
-        }
+        try setBufferLinesViaVim(start: start, end: end, lines: lines)
     }
     
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int) {
@@ -153,7 +105,7 @@ class VimSession: VimSessionProtocol {
             throw VimSessionError.invalidResponse("Invalid window number: \(window)")
         }
         
-        return currentCursor
+        return try queryServerCursor()
     }
     
     func setCursorPosition(window: Int, row: Int, col: Int) throws {
@@ -165,17 +117,19 @@ class VimSession: VimSessionProtocol {
             throw VimSessionError.invalidResponse("Invalid window number: \(window)")
         }
         
-        let actualRow = max(0, min(row, currentBuffer.count - 1))
-        let actualCol = max(0, min(col, currentBuffer[actualRow].count))
+        let vimRow = max(1, row + 1)
+        let vimCol = max(1, col + 1)
         
-        currentCursor = (row: actualRow, col: actualCol)
+        try sendServerCommand(":\(vimRow)<CR>")
+        try sendServerCommand("\(vimCol)|")
     }
     
     func getMode() throws -> (mode: String, blocking: Bool) {
         guard isRunning() else {
             throw VimSessionError.notRunning
         }
-        return (mode: currentMode, blocking: false)
+        let mode = try queryServerMode()
+        return (mode: mode, blocking: false)
     }
     
     private func startMacVimServer() throws {
@@ -306,7 +260,20 @@ class VimSession: VimSessionProtocol {
         }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "n"
+        let rawMode = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "n"
+        
+        // Clean up mode string - remove quotes if present
+        let cleanMode = rawMode.replacingOccurrences(of: "'", with: "")
+        
+        // Map vim modes to expected values
+        switch cleanMode {
+        case "n", "no", "nov": return "n"  // normal mode
+        case "i", "ic", "ix": return "i"   // insert mode
+        case "v", "vs", "V", "Vs": return "v"  // visual mode
+        case "r", "rv": return "r"         // replace mode
+        case "c", "cv": return "c"         // command mode
+        default: return "n"                // default to normal
+        }
     }
     
     private func queryServerCursor() throws -> (row: Int, col: Int) {
@@ -348,6 +315,88 @@ class VimSession: VimSessionProtocol {
         }
         
         return (row: 0, col: 0)
+    }
+    
+    private func queryBufferLines(start: Int, end: Int) throws -> [String] {
+        guard let serverName = serverName else {
+            throw VimSessionError.notRunning
+        }
+        
+        let startLine = max(1, start + 1)
+        let endLine = end == -1 ? "$" : String(end)
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gvimPath)
+        process.arguments = [
+            "--servername", serverName,
+            "--remote-expr", "join(getline(\(startLine), '\(endLine)'), \"\\n\")"
+        ]
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw VimSessionError.communicationFailed("Buffer lines query failed: \(error)")
+        }
+        
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let result = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        // Remove surrounding quotes if present
+        let cleanResult = result.hasPrefix("'") && result.hasSuffix("'") ? 
+            String(result.dropFirst().dropLast()) : result
+        
+        // Split by newlines to get individual lines
+        let lines = cleanResult.components(separatedBy: "\n")
+        return lines.isEmpty || (lines.count == 1 && lines[0].isEmpty) ? [""] : lines
+    }
+    
+    private func setBufferLinesViaVim(start: Int, end: Int, lines: [String]) throws {
+        // Use vim's setline() function to directly set the buffer content
+        if end == -1 {
+            // Replace entire buffer
+            try sendServerCommand(":1,$d<CR>")
+            if !lines.isEmpty {
+                for (index, line) in lines.enumerated() {
+                    let escapedLine = line.replacingOccurrences(of: "'", with: "''")
+                    if index == 0 {
+                        try sendServerCommand(":call setline(1, '\(escapedLine)')<CR>")
+                    } else {
+                        try sendServerCommand(":call append(line('$'), '\(escapedLine)')<CR>")
+                    }
+                }
+            }
+        } else {
+            // Replace specific range
+            let startLine = start + 1
+            let endLine = end
+            
+            // Delete existing lines in range if they exist
+            if startLine <= endLine {
+                try sendServerCommand(":\(startLine),\(endLine)d<CR>")
+            }
+            
+            // Insert new lines
+            if !lines.isEmpty {
+                let insertLine = max(1, start)
+                for (index, line) in lines.enumerated() {
+                    let escapedLine = line.replacingOccurrences(of: "'", with: "''")
+                    let lineNum = insertLine + index
+                    if lineNum == 1 && start == 0 {
+                        try sendServerCommand(":call setline(1, '\(escapedLine)')<CR>")
+                    } else {
+                        try sendServerCommand(":call append(\(lineNum - 1), '\(escapedLine)')<CR>")
+                    }
+                }
+            }
+        }
     }
 }
 
