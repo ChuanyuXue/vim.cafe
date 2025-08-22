@@ -334,13 +334,10 @@ struct VimSessionMultipleInstanceTests {
 // MARK: - Part 3: VimSession Specific Features Tests
 struct VimSessionSpecificTests {
     
-    @Test func testVimSessionWithCustomVimPath() throws {
-        let session = VimSession(vimPath: "/opt/homebrew/bin/vim")
+    @Test func testVimSessionWithCustomGvimPath() throws {
+        let session = VimSession(gvimPath: "/opt/homebrew/bin/gvim")
         
         #expect(!session.isRunning(), "Session should not be running initially")
-        
-        // Note: This test might fail if vim is not installed at /usr/bin/vim
-        // but it tests the custom path initialization
     }
     
     @Test func testVimSessionVimscriptExecution() async throws {
