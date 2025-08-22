@@ -5,14 +5,17 @@ Desc: description
 Created:  2025-08-20T19:21:04.471Z
 */
 
+import Foundation
+
 class AStarAlgorithm: AlgorithmProtocol {
     func search(from initialState: VimState, to targetState: VimState, options: SearchOptions) throws -> [VimKeystroke] {
         let startTime = Date()
         let heuristic = options.heuristic.estimate(state: initialState, target: targetState)
         let rootNode = AStarNode(state: initialState, keystrokePath: [], parent: nil, cost: 0, heuristic: heuristic)
 
-        let nodePool = try NodePool([rootNode])
-        let vimEngine = try VimEngine(initialState: initialState)
+        var nodePool = AStarNodePool()
+        nodePool.add(rootNode)
+        let vimEngine = VimEngine(defaultState: initialState)
         
         while let currentNode = nodePool.pop() {
             if Date().timeIntervalSince(startTime) > options.timeOut {
@@ -33,7 +36,7 @@ class AStarAlgorithm: AlgorithmProtocol {
                     continue
                 }
                 
-                let gCost = currentNode.cost + 1.0
+                let gCost = (currentNode as! AStarNode).cost + 1.0
                 let hCost = options.heuristic.estimate(state: newState, target: targetState)
                 
                 let neighborNode = AStarNode(

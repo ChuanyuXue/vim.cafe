@@ -8,10 +8,18 @@ Created:  2025-08-20T19:31:48.305Z
 struct AStarNode: NodeProtocol {
     let state: VimState
     let keystrokePath: [VimKeystroke]
-    let parent: NodeProtocol?
+    let parent: (any NodeProtocol)?
 
-    private let cost: Double
-    private let heuristic: Double
+    let cost: Double
+    let heuristic: Double
+
+    init(state: VimState, keystrokePath: [VimKeystroke], parent: (any NodeProtocol)?, cost: Double, heuristic: Double) {
+        self.state = state
+        self.keystrokePath = keystrokePath
+        self.parent = parent
+        self.cost = cost
+        self.heuristic = heuristic
+    }
 
     var priority: Double {
         return cost + heuristic
@@ -21,6 +29,8 @@ struct AStarNode: NodeProtocol {
         hasher.combine(state)
     }
 
+    // TODO: This needs to be reconsidered.
+    // Because hidden states are not considered.
     static func == (lhs: AStarNode, rhs: AStarNode) -> Bool {
         return lhs.state == rhs.state
     }

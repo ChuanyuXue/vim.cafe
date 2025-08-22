@@ -9,6 +9,6 @@ protocol NodeProtocol: Hashable {
     var state: VimState { get }
     var keystrokePath: [VimKeystroke] { get }
     var priority: Double { get }
-    var parent: NodeProtocol? { get }
+    var parent: (any NodeProtocol)? { get }
 }
 

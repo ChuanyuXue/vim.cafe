@@ -5,8 +5,8 @@ Desc: description
 Created:  2025-08-21T01:22:01.688Z
 */
 
-class AStartNeighbors: NeighborsProtocol {
+class AStarNeighbors: NeighborsProtocol {
     func getNextKeystrokes(state: VimState, target: VimState) -> [VimKeystroke] {
-        return []
+        return VimKeystroke.allowedKeys
     }
 }
