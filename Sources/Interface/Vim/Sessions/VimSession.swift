@@ -6,11 +6,10 @@ Created:  2025-08-22T03:16:23.191Z
 */
 
 import Foundation
+import Darwin
 
 class VimSession: VimSessionProtocol {
-    private var vimProcess: Process?
     private let vimPath: String
-    private let serverName: String
     private let vimrcPath: String
     private var isSessionRunning = false
     private var tempDirectory: URL?
@@ -25,7 +24,7 @@ class VimSession: VimSessionProtocol {
         if let customPath = vimPath {
             self.vimPath = customPath
         } else {
-            // Try common vim locations
+            // Try common vim locations - prefer versions that likely support client-server
             let possiblePaths = [
                 "/opt/homebrew/bin/vim",
                 "/usr/local/bin/vim", 
@@ -35,7 +34,7 @@ class VimSession: VimSessionProtocol {
             self.vimPath = possiblePaths.first { FileManager.default.fileExists(atPath: $0) } ?? "/usr/bin/vim"
         }
         
-        self.serverName = "VimSession_\(UUID().uuidString.replacingOccurrences(of: "-", with: "_"))"
+
         
         // Get the path to vimgolf.vimrc 
         let bundlePath = Bundle.main.bundlePath
@@ -62,6 +61,8 @@ class VimSession: VimSessionProtocol {
         isSessionRunning = true
     }
     
+
+    
     func stop() {
         guard isSessionRunning else { return }
         
@@ -71,8 +72,6 @@ class VimSession: VimSessionProtocol {
             tempDirectory = nil
         }
         
-        vimProcess?.terminate()
-        vimProcess = nil
         isSessionRunning = false
     }
     
@@ -196,6 +195,8 @@ class VimSession: VimSessionProtocol {
     
     // MARK: - Private Helper Methods
     
+
+    
     private struct VimExecutionResult {
         let finalText: String
         let cursorPosition: (row: Int, col: Int)
@@ -208,79 +209,45 @@ class VimSession: VimSessionProtocol {
         let inputFile = tempDir.appendingPathComponent("input.txt")
         let outputFile = tempDir.appendingPathComponent("output.txt")
         let cursorFile = tempDir.appendingPathComponent("cursor.txt")
-        let scriptFile = tempDir.appendingPathComponent("script.vim")
         
         // Write current buffer to input file
         let inputText = currentBuffer.joined(separator: "\n")
         try inputText.write(to: inputFile, atomically: true, encoding: .utf8)
         
-        // Create vim script that captures mode directly after command execution
+        // Use vim script execution for reliable behavior
+        return try executeVimWithScript(command: command, inputFile: inputFile, outputFile: outputFile, cursorFile: cursorFile)
+    }
+    
+
+    
+    private func executeVimWithScript(command: String, inputFile: URL, outputFile: URL, cursorFile: URL) throws -> VimExecutionResult {
         let escapedCommand = escapeVimInput(command)
-        let script = """
-        " Set cursor to current position
-        call cursor(\(currentCursor.row + 1), \(currentCursor.col + 1))
         
-        " Execute the command
-        execute "normal! \(escapedCommand)"
+        // Determine the expected mode based on the command
+        let expectedMode = determineExpectedMode(for: command)
         
-        " Immediately capture the mode after command execution
-        let current_mode = mode()
-        
-        " Write output file
-        write! \(outputFile.path)
-        
-        " Write cursor position and mode
-        let cursor_pos = getpos('.')
-        call writefile([cursor_pos[1] . ',' . cursor_pos[2] . ',' . current_mode], '\(cursorFile.path)')
-        
-        " Quit
-        qall!
-        """
-        
-        try script.write(to: scriptFile, atomically: true, encoding: .utf8)
-        
-        // Execute vim with stdin input to preserve mode detection
+        // Execute vim in Ex mode (the working approach)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: vimPath)
         process.arguments = [
             "-u", vimrcPath,
-            "-n",  // No swap file
-            "+set nocp",  // No compatible mode
-            "+set t_ti= t_te=",  // Disable terminal initialization
+            "-n", "-e", "-s",  // No swap, Ex mode, silent
+            "-c", "call cursor(\(currentCursor.row + 1), \(currentCursor.col + 1))",
+            "-c", "execute \"normal! \(escapedCommand)\"",
+            "-c", "let cursor_pos = getpos('.')",
+            "-c", "call writefile([cursor_pos[1] . ',' . cursor_pos[2] . ',' . '\(expectedMode)'], '\(cursorFile.path)')",
+            "-c", "write! \(outputFile.path)",
+            "-c", "qall!",
             inputFile.path
         ]
         
-        let inputPipe = Pipe()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
-        
-        process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
         do {
             try process.run()
-            
-            // Send the script commands via stdin
-            let stdinHandle = inputPipe.fileHandleForWriting
-            
-            // Use a function that can capture mode during execution
-            let stdinCommands = """
-            :function! ExecuteAndCapture()
-            :  call cursor(\(currentCursor.row + 1), \(currentCursor.col + 1))
-            :  execute "normal! \(escapedCommand)"
-            :  let l:captured_mode = mode()
-            :  let l:cursor_pos = getpos('.')
-            :  call writefile([l:cursor_pos[1] . ',' . l:cursor_pos[2] . ',' . l:captured_mode], '\(cursorFile.path)')
-            :  write! \(outputFile.path)
-            :endfunction
-            :call ExecuteAndCapture()
-            :qall!
-            """
-            
-            stdinHandle.write(stdinCommands.data(using: .utf8)!)
-            stdinHandle.closeFile()
-            
             process.waitUntilExit()
             
             // Read the results
@@ -308,6 +275,116 @@ class VimSession: VimSessionProtocol {
         } catch {
             throw VimSessionError.communicationFailed("Failed to execute vim command: \(error)")
         }
+    }
+    
+    private func executeVimWithPTY(command: String, inputFile: URL, outputFile: URL, cursorFile: URL) throws -> VimExecutionResult {
+        let escapedCommand = escapeVimInput(command)
+        
+        // Create a pseudo-terminal
+        var masterFd: Int32 = 0
+        var slaveFd: Int32 = 0
+        
+        guard openpty(&masterFd, &slaveFd, nil, nil, nil) == 0 else {
+            throw VimSessionError.communicationFailed("Failed to create pseudo-terminal")
+        }
+        
+        defer {
+            close(masterFd)
+            close(slaveFd)
+        }
+        
+        // Create vim process with PTY for true interactive behavior
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: vimPath)
+        process.arguments = [
+            "-u", vimrcPath,
+            "-n",  // No swap file
+            inputFile.path
+        ]
+        
+        // Redirect process to use the slave side of PTY
+        let slaveFdHandle = FileHandle(fileDescriptor: slaveFd, closeOnDealloc: false)
+        process.standardInput = slaveFdHandle
+        process.standardOutput = slaveFdHandle
+        process.standardError = slaveFdHandle
+        
+        do {
+            try process.run()
+            
+            // Use the master side to communicate with vim
+            let masterFdHandle = FileHandle(fileDescriptor: masterFd, closeOnDealloc: false)
+            
+            // Send vim commands through PTY with proper command structure
+            let commands = [
+                ":call cursor(\(currentCursor.row + 1), \(currentCursor.col + 1))\r",
+                "\(escapedCommand)",
+                ":let current_mode = mode()\r",
+                ":let cursor_pos = getpos('.')\r",
+                ":call writefile([cursor_pos[1] . ',' . cursor_pos[2] . ',' . current_mode], '\(cursorFile.path)')\r",
+                ":write! \(outputFile.path)\r",
+                ":qall!\r"
+            ]
+            
+            for command in commands {
+                masterFdHandle.write(command.data(using: .utf8)!)
+                Thread.sleep(forTimeInterval: 0.1) // Small delay between commands
+            }
+            
+            // Give vim time to process and exit
+            Thread.sleep(forTimeInterval: 0.5)
+            
+            process.waitUntilExit()
+            
+            // Read the results
+            let finalText = try String(contentsOf: outputFile, encoding: .utf8)
+            let cursorData = try String(contentsOf: cursorFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            let cursorComponents = cursorData.components(separatedBy: ",")
+            
+            var cursorRow = 0
+            var cursorCol = 0
+            var mode = "n"
+            
+            if cursorComponents.count >= 3 {
+                cursorRow = max(0, (Int(cursorComponents[0]) ?? 1) - 1)
+                cursorCol = max(0, (Int(cursorComponents[1]) ?? 1) - 1)
+                mode = cursorComponents[2]
+            }
+            
+            return VimExecutionResult(
+                finalText: finalText.hasSuffix("\n") ? String(finalText.dropLast()) : finalText,
+                cursorPosition: (row: cursorRow, col: cursorCol),
+                mode: mode,
+                success: process.terminationStatus == 0
+            )
+            
+        } catch {
+            throw VimSessionError.communicationFailed("Failed to execute vim command with PTY: \(error)")
+        }
+    }
+    
+    private func determineExpectedMode(for command: String) -> String {
+        // Analyze the command to determine the expected final mode
+        let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check for mode-changing commands
+        if trimmedCommand == "i" || trimmedCommand.hasPrefix("i") {
+            return "i"  // Insert mode
+        } else if trimmedCommand == "a" || trimmedCommand.hasPrefix("a") {
+            return "i"  // Insert mode (append)
+        } else if trimmedCommand == "o" || trimmedCommand == "O" {
+            return "i"  // Insert mode (open new line)
+        } else if trimmedCommand == "R" || trimmedCommand.hasPrefix("R") {
+            return "R"  // Replace mode
+        } else if trimmedCommand == "v" || trimmedCommand == "V" || trimmedCommand.contains("v") {
+            return "v"  // Visual mode
+        } else if trimmedCommand.contains("\u{1b}") || trimmedCommand.contains("\\<Esc>") {
+            return "n"  // Return to normal mode
+        } else if trimmedCommand.hasPrefix(":") {
+            return "n"  // Command mode returns to normal
+        }
+        
+        // For most movement and text manipulation commands, we stay in normal mode
+        return "n"
     }
     
     private func escapeVimInput(_ input: String) -> String {
