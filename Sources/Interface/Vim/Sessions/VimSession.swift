@@ -7,7 +7,7 @@ Created:  2025-08-22T03:16:23.191Z
 
 import Foundation
 
-class VimSession: VimSessionProtocol {
+class VimSession: SessionProtocol {
     private let gvimPath: String
     private let vimrcPath: String
     private var isSessionRunning = false
@@ -30,8 +30,7 @@ class VimSession: VimSessionProtocol {
         
         try startMacVimServer()
         
-        // Initialize with empty buffer and ensure normal mode
-        Thread.sleep(forTimeInterval: 0.1)
+        Thread.sleep(forTimeInterval: 0.05)
         try sendServerCommand("\u{1b}:call setline(1, '')<CR>")
         try sendServerCommand("\u{1b}")
         
@@ -68,8 +67,6 @@ class VimSession: VimSessionProtocol {
         }
         
         try sendServerCommand(input)
-        
-        Thread.sleep(forTimeInterval: 0.05)
     }
     
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
@@ -162,10 +159,10 @@ class VimSession: VimSessionProtocol {
         
         // Wait for server to be ready
         var attempts = 0
-        let maxAttempts = 10
+        let maxAttempts = 5
         
         while attempts < maxAttempts {
-            Thread.sleep(forTimeInterval: 0.2)
+            Thread.sleep(forTimeInterval: 0.1)
             attempts += 1
             
             do {

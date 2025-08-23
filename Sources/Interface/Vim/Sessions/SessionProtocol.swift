@@ -5,7 +5,7 @@ Desc: description
 Created:  2025-08-19T20:42:35.611Z
 */
 
-protocol VimSessionProtocol {
+protocol SessionProtocol {
     func start() throws
     func stop()
     func isRunning() -> Bool
@@ -16,4 +16,18 @@ protocol VimSessionProtocol {
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int)
     func setCursorPosition(window: Int, row: Int, col: Int) throws
     func getMode() throws -> (mode: String, blocking: Bool)
+}
+
+enum SessionType: String, CaseIterable {
+    case nvim = "nvim"
+    case vim = "vim"
+    
+    var displayName: String {
+        switch self {
+        case .vim:
+            return "Vim"
+        case .nvim:
+            return "Neovim"
+        }
+    }
 }

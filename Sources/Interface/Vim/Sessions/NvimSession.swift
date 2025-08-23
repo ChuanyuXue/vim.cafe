@@ -8,7 +8,7 @@ Created:  2025-08-19T01:59:11.420Z
 import Foundation
 import MessagePack
 
-class NvimSession: VimSessionProtocol {
+class NvimSession: SessionProtocol {
     private var nvimProcess: Process?
     private var inputPipe: Pipe?
     private var outputPipe: Pipe?

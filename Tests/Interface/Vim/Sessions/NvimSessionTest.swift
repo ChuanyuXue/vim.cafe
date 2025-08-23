@@ -1,33 +1,153 @@
 /*
 Author: <Chuanyu> (skewcy@gmail.com)
-VimSessionTest.swift (c) 2025
-Desc: Comprehensive tests for VimSession functionality
-Created:  2025-08-21T22:20:13.443Z
+NvimClientTest.swift (c) 2025
+Desc: Comprehensive tests for NvimRPC and NvimSession functionality
+Created:  2025-08-19T01:59:11.420Z
 */
 
 import Testing
 import Foundation
 @testable import VimCafe
 
-// MARK: - Part 1: VimSession Basic Functionality Tests
-struct VimSessionBasicTests {
+// MARK: - Part 1: NvimRPC Encode/Decode Tests
+struct NvimRPCTests {
     
-    @Test func testVimSessionStartStop() throws {
-        let session = VimSession()
+    @Test func testCreateRequest() {
+        let request = NvimRPC.createRequest(id: 1, method: "test_method", params: ["param1", 42])
         
-        #expect(!session.isRunning(), "Session should not be running initially")
+        #expect(request.count == 4, "Request should have 4 elements")
+        #expect(request[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(request[1] as? UInt32 == 1, "Second element should be message ID")
+        #expect(request[2] as? String == "test_method", "Third element should be method name")
         
-        try session.start()
+        if let params = request[3] as? [Any] {
+            #expect(params.count == 2, "Should have 2 parameters")
+            #expect(params[0] as? String == "param1", "First param should be 'param1'")
+            #expect(params[1] as? Int == 42, "Second param should be 42")
+        } else {
+            Issue.record("Parameters should be an array")
+        }
+    }
+    
+    @Test func testEncodeDecodeRequest() throws {
+        let request = NvimRPC.createRequest(id: 1, method: "nvim_input", params: ["hello world"])
+        let encoded = try NvimRPC.encode(request)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 1, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_input", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?.count == 1, "Fourth element should have 1 parameter")
+        #expect((decoded[3] as? [Any])?[0] as? String == "hello world", "Parameter should be 'hello world'")
+    }
+    
+    @Test func testEncodeDecodeRequestWithInt() throws {
+        let request = NvimRPC.createRequest(id: 42, method: "nvim_buf_get_lines", params: [1, 0, -1, false])
+        let encoded = try NvimRPC.encode(request)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 42, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_buf_get_lines", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?.count == 4, "Fourth element should have 4 parameters")
+    }
+    
+    @Test func testEncodeDecodeResponse() throws {
+        let response: [Any] = [1, UInt32(12345), NSNull(), ["result", "data"]]
+        let encoded = try NvimRPC.encode(response)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC response should have 4 elements")
+        #expect(decoded[0] as? Int == 1, "First element should be 1 (response type)")
+        #expect(decoded[1] as? Int == 12345, "Second element should be message ID")
+        #expect(decoded[2] is NSNull, "Third element should be null (no error)")
+        #expect((decoded[3] as? [Any])?.count == 2, "Fourth element should be result array")
+    }
+    
+    @Test func testEncodeDecodeRequestWithBool() throws {
+        let request = NvimRPC.createRequest(id: 1, method: "nvim_buf_set_lines", params: [1, 0, -1, false, ["line1", "line2"]])
+        let encoded = try NvimRPC.encode(request)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0 (request type)")
+        #expect(decoded[1] as? Int == 1, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_buf_set_lines", "Third element should be method name")
+        
+        let params = decoded[3] as? [Any]
+        #expect(params?.count == 5, "Should have 5 parameters")
+        #expect(params?[3] as? Bool == false, "Fourth parameter should be false")
+        #expect((params?[4] as? [Any])?.count == 2, "Fifth parameter should be array with 2 lines")
+    }
+    
+    @Test func testEncodeDecodeNotification() throws {
+        let notification: [Any] = [2, "nvim_buf_lines_event", [1, 0, 5, ["new line"], false]]
+        let encoded = try NvimRPC.encode(notification)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 3, "RPC notification should have 3 elements")
+        #expect(decoded[0] as? Int == 2, "First element should be 2 (notification type)")
+        #expect(decoded[1] as? String == "nvim_buf_lines_event", "Second element should be event name")
+        
+        let params = decoded[2] as? [Any]
+        #expect(params?.count == 5, "Third element should have 5 parameters")
+        #expect(params?[0] as? Int == 1, "First param should be buffer ID")
+        #expect((params?[3] as? [Any])?.count == 1, "Fourth param should be lines array")
+    }
+    
+    @Test func testEncodeDecodeComplexRequest() throws {
+        let request = NvimRPC.createRequest(id: 123, method: "nvim_get_mode", params: [])
+        let encoded = try NvimRPC.encode(request)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "Request should have 4 elements")
+        #expect(decoded[0] as? Int == 0, "First element should be 0")
+        #expect(decoded[1] as? Int == 123, "Second element should be message ID")
+        #expect(decoded[2] as? String == "nvim_get_mode", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?.count == 0, "Fourth element should be empty params array")
+    }
+    
+    @Test func testEncodeDecodeErrorResponse() throws {
+        let errorResponse: [Any] = [1, UInt32(42), "Invalid buffer", NSNull()]
+        let encoded = try NvimRPC.encode(errorResponse)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC error response should have 4 elements")
+        #expect(decoded[0] as? Int == 1, "First element should be 1 (response type)")
+        #expect(decoded[1] as? Int == 42, "Second element should be message ID")
+        #expect(decoded[2] as? String == "Invalid buffer", "Third element should be error message")
+        #expect(decoded[3] is NSNull, "Fourth element should be null (no result)")
+    }
+    
+    @Test func testEncodeDecodeRequestWithLargeData() throws {
+        let largeString = String(repeating: "a", count: 1000)
+        let request = NvimRPC.createRequest(id: 999, method: "nvim_command", params: [largeString])
+        let encoded = try NvimRPC.encode(request)
+        let decoded = try NvimRPC.decode(encoded)
+        
+        #expect(decoded.count == 4, "RPC request should have 4 elements")
+        #expect(decoded[2] as? String == "nvim_command", "Third element should be method name")
+        #expect((decoded[3] as? [Any])?[0] as? String == largeString, "Parameter should match large string")
+    }
+}
+
+// MARK: - Part 2: NvimSession Basic Functionality Tests
+struct NvimSessionBasicTests {
+    
+    @Test func testNvimSessionStartStop() throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
+        
+        #expect(session.isRunning(), "Session should be running after creation")
         #expect(session.isRunning(), "Session should be running after start")
         
         session.stop()
         #expect(!session.isRunning(), "Session should not be running after stop")
     }
     
-    @Test func testVimSessionGetMode() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionGetMode() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         let mode = try session.getMode()
@@ -37,10 +157,8 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionSendInput() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionSendInput() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         try session.sendInput("i")
@@ -58,10 +176,8 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionBufferOperations() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionBufferOperations() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         let testLines = ["First line", "Second line", "Third line"]
@@ -82,10 +198,8 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionCursorOperations() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionCursorOperations() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         let testLines = ["Line 1", "Line 2", "Line 3"]
@@ -109,10 +223,8 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionEmptyBuffer() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionEmptyBuffer() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         let initialLines = try session.getBufferLines(buffer: 1, start: 0, end: -1)
@@ -128,10 +240,8 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionTimeout() async throws {
-        let session = VimSession()
-        
-        try session.start()
+    @Test func testNvimSessionTimeout() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
         try await Task.sleep(for: .milliseconds(200))
         
         let mode = try session.getMode()
@@ -141,15 +251,13 @@ struct VimSessionBasicTests {
     }
 }
 
-// MARK: - Part 2: Multiple VimSession Tests
-struct VimSessionMultipleInstanceTests {
+// MARK: - Part 3: Multiple NvimSession Tests
+struct NvimSessionMultipleInstanceTests {
     
     @Test func testMultipleSessionsIndependence() async throws {
-        let session1 = VimSession()
-        let session2 = VimSession()
+        let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)
+        let session2 = try SessionManager.shared.createAndStartSession(type: .nvim)
         
-        try session1.start()
-        try session2.start()
         
         try await Task.sleep(for: .milliseconds(300))
         
@@ -176,11 +284,9 @@ struct VimSessionMultipleInstanceTests {
     }
     
     @Test func testMultipleSessionsCursorIndependence() async throws {
-        let session1 = VimSession()
-        let session2 = VimSession()
+        let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)
+        let session2 = try SessionManager.shared.createAndStartSession(type: .nvim)
         
-        try session1.start()
-        try session2.start()
         
         try await Task.sleep(for: .milliseconds(300))
         
@@ -208,11 +314,9 @@ struct VimSessionMultipleInstanceTests {
     }
     
     @Test func testMultipleSessionsModeIndependence() async throws {
-        let session1 = VimSession()
-        let session2 = VimSession()
+        let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)
+        let session2 = try SessionManager.shared.createAndStartSession(type: .nvim)
         
-        try session1.start()
-        try session2.start()
         
         try await Task.sleep(for: .milliseconds(300))
         
@@ -239,7 +343,7 @@ struct VimSessionMultipleInstanceTests {
     }
     
     @Test func testSessionCreationAfterOthersRunning() async throws {
-        let session1 = VimSession()
+        let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)
         
         try session1.start()
         try await Task.sleep(for: .milliseconds(200))
@@ -248,7 +352,7 @@ struct VimSessionMultipleInstanceTests {
         try session1.setBufferLines(buffer: 1, start: 0, end: -1, lines: testContent)
         try await Task.sleep(for: .milliseconds(100))
         
-        let session2 = VimSession()
+        let session2 = try SessionManager.shared.createAndStartSession(type: .nvim)
         try session2.start()
         try await Task.sleep(for: .milliseconds(200))
         
@@ -266,12 +370,10 @@ struct VimSessionMultipleInstanceTests {
     }
     
     @Test func testStoppingOneSessionDoesNotAffectOthers() async throws {
-        let session1 = VimSession()
-        let session2 = VimSession()
-        let session3 = VimSession()
+        let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)
+        let session2 = try SessionManager.shared.createAndStartSession(type: .nvim)
+        let session3 = try SessionManager.shared.createAndStartSession(type: .nvim)
         
-        try session1.start()
-        try session2.start()
         try session3.start()
         
         try await Task.sleep(for: .milliseconds(400))
@@ -297,12 +399,8 @@ struct VimSessionMultipleInstanceTests {
     }
     
     @Test func testMultipleSessionsStressTest() async throws {
-        let sessions = (0..<5).map { index in 
-            VimSession()
-        }
-        
-        for session in sessions {
-            try session.start()
+        let sessions = try (0..<5).map { _ in 
+            try SessionManager.shared.createAndStartSession(type: .nvim)
         }
         
         try await Task.sleep(for: .milliseconds(500))
@@ -328,59 +426,5 @@ struct VimSessionMultipleInstanceTests {
         for session in sessions {
             #expect(!session.isRunning(), "All sessions should be stopped")
         }
-    }
-}
-
-// MARK: - Part 3: VimSession Specific Features Tests
-struct VimSessionSpecificTests {
-    
-    @Test func testVimSessionWithCustomGvimPath() throws {
-        let session = VimSession()
-        
-        #expect(!session.isRunning(), "Session should not be running initially")
-    }
-    
-    @Test func testVimSessionVimscriptExecution() async throws {
-        let session = VimSession()
-        
-        try session.start()
-        try await Task.sleep(for: .milliseconds(200))
-        
-        // Test that we can execute Vimscript commands through the session
-        try session.sendInput(":echo 'test'")
-        try session.sendInput("<CR>")
-        try await Task.sleep(for: .milliseconds(100))
-        
-        // Should still be in normal mode after command
-        let mode = try session.getMode()
-        #expect(mode.mode == "n", "Should return to normal mode after command")
-        
-        session.stop()
-    }
-    
-    @Test func testVimSessionErrorHandling() async throws {
-        let session = VimSession()
-        
-        try session.start()
-        try await Task.sleep(for: .milliseconds(200))
-        
-        // Test that invalid buffer operations throw appropriate errors
-        do {
-            _ = try session.getBufferLines(buffer: 999, start: 0, end: -1)
-            Issue.record("Should have thrown an error for invalid buffer")
-        } catch {
-            // Expected to throw an error
-        }
-        
-        session.stop()
-    }
-    
-    @Test func testVimSessionServerNameUniqueness() throws {
-        let session1 = VimSession()
-        let session2 = VimSession()
-        
-        // Sessions with different server names should be independent
-        #expect(!session1.isRunning(), "Session 1 should not be running initially")
-        #expect(!session2.isRunning(), "Session 2 should not be running initially")
     }
 }

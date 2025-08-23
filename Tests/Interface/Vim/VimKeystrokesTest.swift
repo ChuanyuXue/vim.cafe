@@ -9,12 +9,12 @@ Updated:  2025-08-20T00:00:00.000Z
 import Testing
 @testable import VimCafe
 
-// Helper to get all keystroke strings for testing
-let KEYSTROKES = VimKeystroke.allCases.map { $0.rawValue }
+private let sessionType = SessionType.nvim
+private let KEYSTROKES = VimKeystroke.allCases.map { $0.rawValue }
 
 struct VimKeystrokesTests {
     @Test func basicNavigationKeystrokesWorkWithVimEngine() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let rightState = try engine.execKeystrokes([.l])
         #expect(rightState.cursor.col >= 0, "Moving right with 'l' should work")
@@ -30,7 +30,7 @@ struct VimKeystrokesTests {
     }
     
     @Test func specialKeysWorkWithVimEngine() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let insertState = try engine.execKeystrokes([.i])
         #expect(insertState.mode == .insert, "Pressing 'i' should enter insert mode")
@@ -43,7 +43,7 @@ struct VimKeystrokesTests {
     }
     
     @Test func textInsertionKeystrokesWorkWithVimEngine() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let resultState = try engine.execKeystrokes([.i, .h, .e, .l, .l, .o, .escape])
         
@@ -52,9 +52,8 @@ struct VimKeystrokesTests {
     }
     
     @Test func controlCombinationsWorkWithVimEngine() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Set up content first
@@ -73,9 +72,8 @@ struct VimKeystrokesTests {
     }
     
     @Test func arrowKeysWorkWithVimEngine() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Set up content first
@@ -99,9 +97,8 @@ struct VimKeystrokesTests {
     }
     
     @Test func backspaceAndDeleteWorkWithVimEngine() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Set up content first
@@ -118,9 +115,8 @@ struct VimKeystrokesTests {
     }
     
     @Test func complexKeystrokeSequenceWorkWithVimEngine() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Set up initial content
@@ -139,7 +135,7 @@ struct VimKeystrokesTests {
     @Test func allKeystrokesAreHandledByVimEngine() throws {
         var failedKeys: [String] = []
         
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         for keystroke in KEYSTROKES {
             do {
@@ -166,7 +162,7 @@ struct VimKeystrokesTests {
     }
     
     @Test func allIndividualKeystrokesWork() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         var failedKeystrokes: [String] = []
         var testedCount = 0
@@ -208,7 +204,7 @@ struct VimKeystrokesTests {
         
         func testCategory(name: String, keys: [String]) {
             var recognized = 0
-            let engine = VimEngine()
+            let engine = VimEngine(defaultSessionType: sessionType)
             
             for key in keys {
                 do {
@@ -240,7 +236,7 @@ struct VimKeystrokesTests {
     @Test func quickKeystrokeSample() throws {
         // Test a small sample of keystrokes to identify common issues
         let sampleKeys: [VimKeystroke] = [.a, .b, .one, .two, .space, .escape, .enter, .backspace, .ctrlA, .metaA, .f1, .up]
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         var failed: [VimKeystroke] = []
         
@@ -262,18 +258,17 @@ struct VimKeystrokesTests {
     }
     
     @Test func debugVimEngineCreation() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.h])
         #expect(VimMode.allCases.contains(result.mode), "Should return valid mode")
     }
     
     @Test func testImprovedBlockingDetection() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Set up content first
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
@@ -298,11 +293,10 @@ struct VimKeystrokesTests {
     }
     
     @Test func testCountPrefixWithMotion() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Set up content first
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
@@ -333,9 +327,8 @@ struct VimKeystrokesTests {
 struct VimKeystrokesRealWorldTests {
     
     @Test func testProgrammingWorkflow() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Create a simple function with keystrokes
@@ -365,9 +358,8 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testTextEditingWorkflow() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Write a document with corrections
@@ -403,9 +395,8 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testNavigationAndSelection() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Create content and navigate through it
@@ -439,9 +430,8 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testSearchAndReplace() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Create content with repeated words
@@ -463,9 +453,8 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testComplexEditingOperations() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Complex editing scenario
@@ -505,9 +494,8 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testSpecialCharactersAndSymbols() throws {
-        let engine = VimEngine()
-        let session = NvimSession()
-        try session.start()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Test various symbols and special characters
@@ -531,7 +519,7 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testFunctionKeys() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Test function keys work without errors
         let functionKeys: [VimKeystroke] = [.f1, .f2, .f3, .f4, .f5, .f6]
@@ -544,11 +532,10 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testControlCombinations() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Set up content for control key testing
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
@@ -571,11 +558,10 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testModeTransitionsWithRealContent() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Test all major mode transitions with real content
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Start in normal mode, go to insert
@@ -612,11 +598,10 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testDeleteAndYankOperations() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Create content for delete/yank operations
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
@@ -638,11 +623,10 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testWordAndLineMovements() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Create content with various word patterns
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
@@ -672,7 +656,7 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testAllKeystrokesHandledProperly() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         var problematicKeys: [String] = []
         var successCount = 0
         
@@ -704,11 +688,10 @@ struct VimKeystrokesRealWorldTests {
     }
     
     @Test func testKeystrokeStateConsistency() throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         // Test that each keystroke returns consistent state
-        let session = NvimSession()
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         defer { session.stop() }
         
         // Test Insert and exit

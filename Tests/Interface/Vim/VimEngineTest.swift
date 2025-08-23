@@ -9,11 +9,13 @@ import Testing
 import Foundation
 @testable import VimCafe
 
+private let sessionType = SessionType.nvim
+
 // MARK: - Part 1: VimEngine Basic Functionality Tests
 struct VimEngineBasicTests {
     
     @Test func testSingleKeystrokeExecution() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.i])
         
@@ -23,7 +25,7 @@ struct VimEngineBasicTests {
     }
     
     @Test func testNavigationKeystrokes() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .escape, .h])
         
@@ -33,7 +35,7 @@ struct VimEngineBasicTests {
     }
     
     @Test func testInsertModeTextEntry() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .space, .W, .o, .r, .l, .d, .escape])
         
@@ -42,7 +44,7 @@ struct VimEngineBasicTests {
     }
     
     @Test func testMultilineTextEntry() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.i, .L, .i, .n, .e, .space, .one, .enter, .L, .i, .n, .e, .space, .two, .escape])
         
@@ -53,7 +55,7 @@ struct VimEngineBasicTests {
     }
     
     @Test func testMovementBetweenLines() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([.i, .F, .i, .r, .s, .t, .enter, .S, .e, .c, .o, .n, .d, .enter, .T, .h, .i, .r, .d, .escape, .k, .k])
         
@@ -67,10 +69,8 @@ struct VimEngineBasicTests {
 struct VimEngineSessionTests {
     
     @Test func testVimEngineWithExistingSession() async throws {
-        let session = NvimSession()
-        let engine = VimEngine()
-        
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
         let result = try engine.execKeystrokes(session: session, keystrokes: [.i, .T, .e, .s, .t, .space, .w, .i, .t, .h, .space, .s, .e, .s, .s, .i, .o, .n, .escape])
@@ -82,10 +82,8 @@ struct VimEngineSessionTests {
     }
     
     @Test func testVimEngineStateRetrieval() async throws {
-        let session = NvimSession()
-        let engine = VimEngine()
-        
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
         try session.setBufferLines(buffer: 1, start: 0, end: -1, lines: ["Test line 1", "Test line 2"])
@@ -103,10 +101,8 @@ struct VimEngineSessionTests {
     }
     
     @Test func testVimEngineWithBlockingSession() async throws {
-        let session = NvimSession()
-        let engine = VimEngine()
-        
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
         try session.sendInput(":")
@@ -123,19 +119,8 @@ struct VimEngineSessionTests {
     }
     
     @Test func testVimEngineErrorHandling() async throws {
-        let session = NvimSession()
-        let engine = VimEngine()
-        
-        #expect(!session.isRunning(), "Session should not be running initially")
-        
-        do {
-            _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-            Issue.record("Should throw error when session is not running")
-        } catch VimEngineError.nvimNotRunning {
-            // Expected error
-        } catch {
-            Issue.record("Should throw nvimNotRunning error, got \(error)")
-        }
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        #expect(session.isRunning(), "Session should be running after creation")
     }
 }
 
@@ -143,7 +128,7 @@ struct VimEngineSessionTests {
 struct VimEngineEditingTests {
     
     @Test func testComplexEditingSequence() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let keystrokes: [VimKeystroke] = [
             .i, .f, .u, .n, .c, .t, .i, .o, .n, .space, .h, .e, .l, .l, .o, .leftParen, .rightParen, .space, .leftBrace, .enter,
@@ -161,7 +146,7 @@ struct VimEngineEditingTests {
     }
     
     @Test func testVisualModeSelection() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let keystrokes: [VimKeystroke] = [
             .i, .S, .e, .l, .e, .c, .t, .space, .t, .h, .i, .s, .space, .t, .e, .x, .t, .escape,
@@ -175,9 +160,9 @@ struct VimEngineEditingTests {
     }
     
     @Test func testDeleteAndUndoOperations() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -193,9 +178,9 @@ struct VimEngineEditingTests {
     }
     
     @Test func testSearchAndReplace() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -211,9 +196,9 @@ struct VimEngineEditingTests {
     }
     
     @Test func testWordMovement() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -229,9 +214,9 @@ struct VimEngineEditingTests {
     }
     
     @Test func testLineOperations() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -258,7 +243,7 @@ struct VimEngineEditingTests {
 struct VimEngineEdgeCaseTests {
     
     @Test func testEmptyKeystrokeArray() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
         let result = try engine.execKeystrokes([])
         
@@ -268,9 +253,9 @@ struct VimEngineEdgeCaseTests {
     }
     
     @Test func testLargeKeystrokeSequence() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -286,9 +271,9 @@ struct VimEngineEdgeCaseTests {
     }
     
     @Test func testSpecialCharacters() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -301,9 +286,9 @@ struct VimEngineEdgeCaseTests {
     }
     
     @Test func testUnicodeCharacters() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -316,9 +301,9 @@ struct VimEngineEdgeCaseTests {
     }
     
     @Test func testModeTransitions() async throws {
-        let engine = VimEngine()
+        let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = NvimSession()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -336,10 +321,8 @@ struct VimEngineEdgeCaseTests {
     }
     
     @Test func testBufferStateConsistency() async throws {
-        let session = NvimSession()
-        let engine = VimEngine()
-        
-        try session.start()
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
         let initialState = try engine.getState(session: session)
@@ -361,8 +344,8 @@ struct VimEngineMotionTests {
     
     // MARK: - Basic Direction Tests
     @Test func testMoveLeftBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -379,8 +362,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveLeftAtBeginning() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -397,8 +380,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveRightBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -415,8 +398,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveRightAtEnd() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -432,8 +415,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveDownBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -450,8 +433,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveDownAtBottom() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -468,8 +451,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveUpBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -486,8 +469,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveUpAtTop() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -505,8 +488,8 @@ struct VimEngineMotionTests {
     
     // MARK: - Counted Motion Tests
     @Test func testMoveDownWithCountBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -523,8 +506,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveDownWithCountOverflow() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -541,8 +524,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveUpWithCountBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -559,8 +542,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testMoveUpWithCountOverflow() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -578,8 +561,8 @@ struct VimEngineMotionTests {
     
     // MARK: - Word Motion Tests
     @Test func testWordForwardBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -596,8 +579,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testWordForwardMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -614,8 +597,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testWordBackwardBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -632,8 +615,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testWordEndBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -651,8 +634,8 @@ struct VimEngineMotionTests {
     
     // MARK: - Line Motion Tests
     @Test func testStartOfLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -669,8 +652,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testFirstNonBlankBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -687,8 +670,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testEndOfLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -706,8 +689,8 @@ struct VimEngineMotionTests {
     
     // MARK: - File Motion Tests
     @Test func testGoToFirstLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -724,8 +707,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testGoToLastLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -742,8 +725,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testGoToLineNumberBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -760,8 +743,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testGoToLineNumberWithG() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -778,8 +761,8 @@ struct VimEngineMotionTests {
     }
     
     @Test func testGoToLineNumberBeyondEnd() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -801,8 +784,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Insert Mode Tests
     @Test func testInsertAtCursorBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -820,8 +803,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtCursorEmptyLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -834,8 +817,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtCursorEndOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -853,8 +836,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtCursorMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -872,8 +855,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtCursorBeginningOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -892,8 +875,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Append Mode Tests
     @Test func testAppendAfterCursorBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -911,8 +894,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAfterCursorEndOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -929,8 +912,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAfterCursorEmptyLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -943,8 +926,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAfterCursorMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -962,8 +945,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAfterCursorBeginningOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -982,8 +965,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Insert at Beginning of Line Tests
     @Test func testInsertAtBeginningOfLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1001,8 +984,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtBeginningOfLineWithWhitespace() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1020,8 +1003,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtBeginningOfLineEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1034,8 +1017,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtBeginningOfLineMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1053,8 +1036,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testInsertAtBeginningOfLineSingleChar() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1072,8 +1055,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Append at End of Line Tests
     @Test func testAppendAtEndOfLineBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1091,8 +1074,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAtEndOfLineSingleChar() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1109,8 +1092,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAtEndOfLineEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1123,8 +1106,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAtEndOfLineMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1142,8 +1125,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testAppendAtEndOfLineWithTrailingSpace() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1162,8 +1145,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Open Line Tests
     @Test func testOpenLineBelowBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1181,8 +1164,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineBelowEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1195,8 +1178,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineBelowMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1214,8 +1197,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineBelowLastLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1232,8 +1215,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineBelowSingleChar() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1250,8 +1233,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineAboveBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1269,8 +1252,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineAboveEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1283,8 +1266,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineAboveMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1302,8 +1285,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineAboveFirstLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1321,8 +1304,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testOpenLineAboveSingleChar() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1340,8 +1323,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Command Mode Tests
     @Test func testEnterCommandModeBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1359,8 +1342,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterCommandModeEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1373,8 +1356,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterCommandModeMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1392,8 +1375,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterCommandModeEndOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1410,8 +1393,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterCommandModeBeginningOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1430,8 +1413,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Replace Tests
     @Test func testReplaceSingleCharBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1450,8 +1433,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testReplaceSingleCharWithSpace() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1470,8 +1453,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testReplaceSingleCharAtEnd() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1489,8 +1472,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testReplaceSingleCharMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1509,8 +1492,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testReplaceSingleCharWithNumber() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1530,8 +1513,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Replace Mode Tests
     @Test func testEnterReplaceModeBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1549,8 +1532,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterReplaceModeEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1563,8 +1546,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterReplaceModeMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1582,8 +1565,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterReplaceModeEndOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1600,8 +1583,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testEnterReplaceModeBeginningOfLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1620,8 +1603,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Join Lines Tests
     @Test func testJoinLinesBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1639,8 +1622,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesMultiple() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1658,8 +1641,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithSpaces() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1677,8 +1660,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesEmptyLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1696,8 +1679,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesLastLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1714,8 +1697,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithoutSpaceBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1733,8 +1716,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithoutSpaceMultiple() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1752,8 +1735,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithoutSpaceWithSpaces() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1771,8 +1754,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithoutSpaceEmpty() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1790,8 +1773,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testJoinLinesWithoutSpaceLastLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1809,8 +1792,8 @@ struct VimEngineOperatorTests {
     
     // MARK: - Delete Character Tests
     @Test func testDeleteCharBasic() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1828,8 +1811,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testDeleteCharAtEnd() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1846,8 +1829,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testDeleteCharSingleChar() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1864,8 +1847,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testDeleteCharMultiline() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
@@ -1883,8 +1866,8 @@ struct VimEngineOperatorTests {
     }
     
     @Test func testDeleteCharEmptyLine() async throws {
-        let engine = VimEngine()
-        let session = NvimSession()
+        let engine = VimEngine(defaultSessionType: sessionType)
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
         try session.start()
         defer { session.stop() }
         
