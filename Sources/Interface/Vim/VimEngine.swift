@@ -49,17 +49,6 @@ class VimEngine {
         return try execKeystrokes(session: session, keystrokes: keystrokes)
     }
     
-    func execKeystrokes(_ keystrokes: [VimKeystroke], sessionType: SessionType) throws -> VimState {
-        let session = try sessionManager.createAndStartSession(type: sessionType)
-        
-        if let defaultState = self.defaultState {
-            try session.setBufferLines(buffer: 1, start: 0, end: -1, lines: defaultState.buffer)
-            try session.setCursorPosition(window: 0, row: defaultState.cursor.row, col: defaultState.cursor.col)
-        }
-        
-        return try execKeystrokes(session: session, keystrokes: keystrokes)
-    }
-    
     func execKeystrokes(_ keystrokes: [VimKeystroke], sessionId: String) throws -> VimState {
         let session = try sessionManager.getSession(id: sessionId)
         
