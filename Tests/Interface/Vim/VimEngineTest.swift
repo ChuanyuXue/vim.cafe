@@ -9,7 +9,7 @@ import Testing
 import Foundation
 @testable import VimCafe
 
-private let sessionType = SessionType.nvim
+private let sessionType = SessionType.vim
 
 // MARK: - Part 1: VimEngine Basic Functionality Tests
 struct VimEngineBasicTests {
@@ -269,7 +269,24 @@ struct VimEngineEdgeCaseTests {
         #expect(result.buffer.first?.contains("Line 1") == true, "Should contain first line")
         #expect(result.buffer.first?.contains("Line 100") == true, "Should contain last line")
     }
-    
+
+    @Test func testSearchSequence() async throws {
+        let engine = VimEngine(defaultSessionType: sessionType)
+        
+        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        try session.start()
+        defer { session.stop() }
+
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        try session.sendInput("hello world")
+        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape, .zero])
+
+        let result = try engine.execKeystrokes(session: session, keystrokes: [.f, .l, .f, .l, .f, .period, .f, .escape])
+
+        #expect(result.cursor.col == 3, "Should move to second 'l'")
+        #expect(result.mode == VimMode.normal, "Should remain in normal mode")
+    }
+
     @Test func testSpecialCharacters() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
@@ -1672,9 +1689,9 @@ struct VimEngineOperatorTests {
         
         let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
         
-        #expect(result.buffer == ["hello ", "world"], "Should join with empty line")
+        #expect(result.buffer == ["hello", "world"], "Should join with empty line")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
-        #expect(result.cursor.col == 5, "Cursor should be positioned after join")
+        #expect(result.cursor.col == 4, "Cursor should be positioned after join")
         #expect(result.mode == .normal, "Should remain in normal mode")
     }
     

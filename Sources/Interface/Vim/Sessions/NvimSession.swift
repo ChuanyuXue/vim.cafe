@@ -9,11 +9,25 @@ import Foundation
 import MessagePack
 
 class NvimSession: SessionProtocol {
+    private let sessionId: String
     private var nvimProcess: Process?
     private var inputPipe: Pipe?
     private var outputPipe: Pipe?
     private var messageId: UInt32 = 0
+    private var inputs: [String] = []
     
+    init() {
+        self.sessionId = UUID().uuidString
+    }
+
+    func getSessionId() -> String {
+        return sessionId
+    }
+
+    func getSessionType() -> SessionType {
+        return .nvim
+    }
+
     func start() throws {
         let process = Process()
         let inputPipe = Pipe()
@@ -65,9 +79,14 @@ class NvimSession: SessionProtocol {
     }
     
     func sendInput(_ input: String) throws {
+        inputs.append(input)
         try callRPC(method: "nvim_input", params: [input]) { _ in () }
     }
     
+    func getInputs() throws -> [String] {
+        return inputs
+    }
+
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
         try callRPC(method: "nvim_buf_get_lines", params: [buffer, start, end, false]) { response in
             guard response.count >= 4, let result = response[3] as? [String] else {

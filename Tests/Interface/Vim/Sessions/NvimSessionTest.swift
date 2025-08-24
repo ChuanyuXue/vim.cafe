@@ -368,6 +368,46 @@ struct NvimSessionMultipleInstanceTests {
         session1.stop()
         session2.stop()
     }
+
+    @Test func testSessionMode() async throws {   
+        // Test insert, normal, replace, visual, command
+        let session = try SessionManager.shared.createAndStartSession(type: .nvim)
+
+        try session.sendInput("i")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let mode = try session.getMode()
+        #expect(mode.mode == "i", "Should be in insert mode after 'i' command")
+
+        try session.sendInput("<Esc>")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let normalMode = try session.getMode()
+        #expect(normalMode.mode == "n", "Should return to normal mode after escape")
+
+        try session.sendInput("r")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let replaceMode = try session.getMode()
+        #expect(replaceMode.mode == "R", "Should be in replace mode after 'R' command")
+
+        try session.sendInput("<Esc>")
+        try session.sendInput("<C-V>")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let visualMode = try session.getMode()
+        if !visualMode.blocking {
+            #expect(visualMode.mode == "v", "Should be in visual mode after '<C-V>' command")
+        }
+
+        try session.sendInput("<Esc>")
+        try session.sendInput(":")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let commandMode = try session.getMode()
+        #expect(commandMode.mode == "c", "Should be in command mode after ':' command")
+    }
+
     
     @Test func testStoppingOneSessionDoesNotAffectOthers() async throws {
         let session1 = try SessionManager.shared.createAndStartSession(type: .nvim)

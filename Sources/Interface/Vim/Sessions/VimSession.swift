@@ -14,13 +14,23 @@ class VimSession: SessionProtocol {
     private var tempDirectory: URL?
     private var serverName: String?
     private var serverProcess: Process?
-    
+    private var inputs: [String] = []
+    private let sessionId: String
     
     init() {
+        self.sessionId = UUID().uuidString
         self.gvimPath = "/opt/homebrew/bin/gvim"
         self.vimrcPath = Bundle.main.bundlePath + "/../../Sources/Interface/Golf/vimgolf.vimrc"
     }
-    
+
+    func getSessionId() -> String {
+        return sessionId
+    }
+
+    func getSessionType() -> SessionType {
+        return .vim
+    }
+
     func start() throws {
         guard !isSessionRunning else { return }
         
@@ -62,6 +72,7 @@ class VimSession: SessionProtocol {
     }
     
     func sendInput(_ input: String) throws {
+        inputs.append(input)
         guard isSessionRunning else {
             throw VimSessionError.notRunning
         }
@@ -69,6 +80,10 @@ class VimSession: SessionProtocol {
         try sendServerCommand(input)
     }
     
+    func getInputs() throws -> [String] {
+        return inputs
+    }
+
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
         guard isRunning() else {
             throw VimSessionError.notRunning
@@ -257,19 +272,16 @@ class VimSession: SessionProtocol {
         }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+
         let rawMode = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "n"
-        
-        // Clean up mode string - remove quotes if present
-        let cleanMode = rawMode.replacingOccurrences(of: "'", with: "")
-        
-        // Map vim modes to expected values
-        switch cleanMode {
+
+        switch rawMode {
         case "n", "no", "nov": return "n"  // normal mode
         case "i", "ic", "ix": return "i"   // insert mode
-        case "v", "vs", "V", "Vs": return "v"  // visual mode
-        case "r", "rv": return "r"         // replace mode
+        case "v", "vs", "V", "Vs", "\u{16}": return "v"  // visual mode
+        case "r", "rv", "R", "Rv": return "R"         // replace mode
         case "c", "cv": return "c"         // command mode
-        default: return "n"                // default to normal
+        default: throw VimSessionError.invalidResponse("Invalid mode: \(rawMode)")
         }
     }
     
@@ -302,7 +314,6 @@ class VimSession: SessionProtocol {
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let result = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        // Parse cursor position from getpos('.') result: ['0', 'line', 'col', '0']
         let components = result.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "").components(separatedBy: ",")
         
         if components.count >= 4 {
@@ -310,8 +321,8 @@ class VimSession: SessionProtocol {
             let col = max(0, (Int(components[2].trimmingCharacters(in: .whitespaces)) ?? 1) - 1)
             return (row: row, col: col)
         }
-        
-        return (row: 0, col: 0)
+
+        throw VimSessionError.invalidResponse("Failed to get cursor position: \(result)")
     }
     
     private func queryBufferLines(start: Int, end: Int) throws -> [String] {

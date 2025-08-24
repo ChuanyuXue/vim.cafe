@@ -6,11 +6,15 @@ Created:  2025-08-19T20:42:35.611Z
 */
 
 protocol SessionProtocol {
+    func getSessionType() -> SessionType
+    func getSessionId() -> String
+
     func start() throws
     func stop()
     func isRunning() -> Bool
 
     func sendInput(_ input: String) throws
+    func getInputs() throws -> [String]
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String]
     func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int)

@@ -83,3 +83,35 @@ enum VimKeystroke: String, CaseIterable {
     case shiftLeft = "<S-Left>", shiftRight = "<S-Right>", shiftUp = "<S-Up>", shiftDown = "<S-Down>"
     case metaLeft = "<M-Left>", metaRight = "<M-Right>", metaUp = "<M-Up>", metaDown = "<M-Down>"
 }
+
+func encodeKeystrokes(_ keystrokes: [VimKeystroke]) -> String {
+    return keystrokes.map { $0.rawValue }.joined(separator: "")
+}
+
+func decodeKeystrokes(_ keystrokes: [String]) -> [VimKeystroke] {
+    return keystrokes.flatMap { decodeKeystrokes(from: $0) }
+}
+
+func decodeKeystrokes(from input: String) -> [VimKeystroke] {
+    var result: [VimKeystroke] = []
+    var index = input.startIndex
+    
+    while index < input.endIndex {
+        let currentChar = input[index]
+        
+        if currentChar == "<", let endIndex = input[index...].firstIndex(of: ">") {
+            let specialKey = String(input[index...endIndex])
+            if let keystroke = VimKeystroke(rawValue: specialKey) {
+                result.append(keystroke)
+            }
+            index = input.index(after: endIndex)
+        } else {
+            if let keystroke = VimKeystroke(rawValue: String(currentChar)) {
+                result.append(keystroke)
+            }
+            index = input.index(after: index)
+        }
+    }
+    
+    return result
+}

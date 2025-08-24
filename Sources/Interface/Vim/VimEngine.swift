@@ -23,16 +23,20 @@ class VimEngine {
             throw VimEngineError.nvimNotRunning
         }
 
-        var lastValidState = try getState(session: session) ?? VimState(buffer: [], cursor: VimCursor(row: 0, col: 0), mode: .normal)
-        
-        for keystroke in keystrokes {
-            if let currentState = try getState(session: session) {
-                lastValidState = currentState
-            }
-            try session.sendInput(keystroke.rawValue)
+        let inputs = try session.getInputs()
+        try session.sendInput(encodeKeystrokes(keystrokes))
+
+        if let lastState = try getState(session: session) {
+            return lastState
         }
-        
-        return try getState(session: session) ?? lastValidState 
+
+
+        // Use new session for recursive call
+        let newSession = try sessionManager.copySession(inputs: inputs, type: session.getSessionType())
+        defer {
+            sessionManager.stopSession(id: newSession.getSessionId())
+        }
+        return try execKeystrokes(session: newSession, keystrokes: Array(keystrokes[0..<keystrokes.count - 1]))
     }
 
     func execKeystrokes(_ keystrokes: [VimKeystroke]) throws -> VimState {

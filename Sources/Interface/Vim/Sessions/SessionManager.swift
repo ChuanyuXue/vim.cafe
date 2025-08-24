@@ -16,16 +16,43 @@ class SessionManager {
     private init() {}
     
     func createAndStartSession(type: SessionType) throws -> SessionProtocol {
-        let sessionId = UUID().uuidString
         let session = try createSessionInstance(type: type)
         
         try session.start()
         
         sessionQueue.async(flags: .barrier) {
-            self.sessions[sessionId] = session
+            self.sessions[session.getSessionId()] = session
         }
-        
         return session
+    }
+
+    func copySession(id: String) throws -> SessionProtocol {
+        let session = try getSession(id: id)
+        let type = session.getSessionType()
+
+        let newSession = try createAndStartSession(type: type)
+
+        let inputs = try session.getInputs()
+        for input in inputs {
+            try newSession.sendInput(input)
+        }
+
+        sessionQueue.async(flags: .barrier) {
+            self.sessions[newSession.getSessionId()] = newSession
+        }
+
+        return newSession
+    }
+
+    func copySession(inputs: [String], type: SessionType) throws -> SessionProtocol {
+        let newSession = try createAndStartSession(type: type)
+        for input in inputs {
+            try newSession.sendInput(input)
+        }
+        sessionQueue.async(flags: .barrier) {
+            self.sessions[newSession.getSessionId()] = newSession
+        }
+        return newSession
     }
     
     func getSession(id: String) throws -> SessionProtocol {
@@ -75,6 +102,7 @@ class SessionManager {
 }
 
 enum SessionManagerError: Error {
+    
     case sessionNotFound(String)
     case noViableSessionType(originalError: Error)
     case sessionCreationFailed(SessionType, Error)
