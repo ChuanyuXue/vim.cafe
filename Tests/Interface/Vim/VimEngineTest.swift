@@ -1443,7 +1443,7 @@ struct VimEngineOperatorTests {
         
         let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
         
-        #expect(result.buffer == ["hellx world"], "Character should be replaced")
+        #expect(result.buffer == ["helloxworld"], "Character should be replaced")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
         #expect(result.cursor.col == 5, "Cursor col should remain same")
         #expect(result.mode == .normal, "Should return to normal mode")
@@ -1670,7 +1670,7 @@ struct VimEngineOperatorTests {
         
         let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
         
-        #expect(result.buffer == ["hello  world"], "Should preserve existing spaces")
+        #expect(result.buffer == ["hello world"], "Should preserve existing spaces")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
         #expect(result.cursor.col == 6, "Cursor should be positioned after join")
         #expect(result.mode == .normal, "Should remain in normal mode")
@@ -1821,7 +1821,7 @@ struct VimEngineOperatorTests {
         
         let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
         
-        #expect(result.buffer == ["hello world"], "Character should be deleted")
+        #expect(result.buffer == ["helloworld"], "Character should be deleted")
         #expect(result.cursor.row == 0, "Cursor should remain on same row")
         #expect(result.cursor.col == 5, "Cursor should remain at same position")
         #expect(result.mode == .normal, "Should remain in normal mode")

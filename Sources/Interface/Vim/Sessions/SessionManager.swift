@@ -94,7 +94,7 @@ class SessionManager {
     private func createSessionInstance(type: SessionType) throws -> SessionProtocol {
         switch type {
         case .vim:
-            return VimSession()
+            return GvimSession()
         case .nvim:
             return NvimSession()
         }

@@ -57,6 +57,10 @@ enum VimMode: String, CaseIterable {
     case shell = "!"
     case terminal = "t"
     
+    init?(rawMode: String) {
+        self.init(rawValue: rawMode)
+    }
+    
     var shortMode: String {
         switch self {
         case .normal, .operatorPending, .operatorPendingCharwise, .operatorPendingLinewise, .operatorPendingBlockwise,

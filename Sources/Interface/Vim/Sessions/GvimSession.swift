@@ -1,13 +1,13 @@
 /*
 Author: <Chuanyu> (skewcy@gmail.com)
-VimSession.swift (c) 2025
-Desc: VimSession implementation using vim subprocess for automation
+GvimSession.swift (c) 2025
+Desc: GvimSession implementation using vim subprocess for automation
 Created:  2025-08-22T03:16:23.191Z
 */
 
 import Foundation
 
-class VimSession: SessionProtocol {
+class GvimSession: SessionProtocol {
     private let gvimPath: String
     private let vimrcPath: String
     private var isSessionRunning = false
@@ -34,7 +34,7 @@ class VimSession: SessionProtocol {
     func start() throws {
         guard !isSessionRunning else { return }
         
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("VimSession_\(UUID().uuidString)")
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("GvimSession_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
         self.tempDirectory = tempDir
         
@@ -74,7 +74,7 @@ class VimSession: SessionProtocol {
     func sendInput(_ input: String) throws {
         inputs.append(input)
         guard isSessionRunning else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         try sendServerCommand(input)
@@ -86,11 +86,11 @@ class VimSession: SessionProtocol {
 
     func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
         guard isRunning() else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         guard buffer == 0 || buffer == 1 else {
-            throw VimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
+            throw GvimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
         }
         
         return try queryBufferLines(start: start, end: end)
@@ -98,11 +98,11 @@ class VimSession: SessionProtocol {
     
     func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws {
         guard isRunning() else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         guard buffer == 0 || buffer == 1 else {
-            throw VimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
+            throw GvimSessionError.invalidResponse("Invalid buffer number: \(buffer)")
         }
         
         try setBufferLinesViaVim(start: start, end: end, lines: lines)
@@ -110,11 +110,11 @@ class VimSession: SessionProtocol {
     
     func getCursorPosition(window: Int) throws -> (row: Int, col: Int) {
         guard isRunning() else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         guard window == 0 else {
-            throw VimSessionError.invalidResponse("Invalid window number: \(window)")
+            throw GvimSessionError.invalidResponse("Invalid window number: \(window)")
         }
         
         return try queryServerCursor()
@@ -122,11 +122,11 @@ class VimSession: SessionProtocol {
     
     func setCursorPosition(window: Int, row: Int, col: Int) throws {
         guard isRunning() else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         guard window == 0 else {
-            throw VimSessionError.invalidResponse("Invalid window number: \(window)")
+            throw GvimSessionError.invalidResponse("Invalid window number: \(window)")
         }
         
         let vimRow = max(1, row + 1)
@@ -138,7 +138,7 @@ class VimSession: SessionProtocol {
     
     func getMode() throws -> (mode: String, blocking: Bool) {
         guard isRunning() else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         let mode = try queryServerMode()
         return (mode: mode, blocking: false)
@@ -149,7 +149,7 @@ class VimSession: SessionProtocol {
         
         // Create a temporary file for the server
         guard let tempDir = tempDirectory else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         let tempFile = tempDir.appendingPathComponent("server_buffer.txt")
         try "".write(to: tempFile, atomically: true, encoding: .utf8)
@@ -188,12 +188,12 @@ class VimSession: SessionProtocol {
                 }
             } catch {
                 if attempts == maxAttempts {
-                    throw VimSessionError.startupFailed(error)
+                    throw GvimSessionError.startupFailed(error)
                 }
             }
         }
         
-        throw VimSessionError.startupFailed(NSError(domain: "VimSession", code: 1, userInfo: [NSLocalizedDescriptionKey: "MacVim server failed to start after \(maxAttempts) attempts"]))
+        throw GvimSessionError.startupFailed(NSError(domain: "GvimSession", code: 1, userInfo: [NSLocalizedDescriptionKey: "MacVim server failed to start after \(maxAttempts) attempts"]))
     }
     
     private func listVimServers() throws -> String {
@@ -214,7 +214,7 @@ class VimSession: SessionProtocol {
         
         if process.terminationStatus != 0 {
             let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw VimSessionError.communicationFailed("Failed to list servers: \(error)")
+            throw GvimSessionError.communicationFailed("Failed to list servers: \(error)")
         }
         
         return String(data: outputData, encoding: .utf8) ?? ""
@@ -222,7 +222,7 @@ class VimSession: SessionProtocol {
     
     private func sendServerCommand(_ command: String) throws {
         guard let serverName = serverName else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         let process = Process()
@@ -241,13 +241,13 @@ class VimSession: SessionProtocol {
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw VimSessionError.communicationFailed("Server send failed: \(error)")
+            throw GvimSessionError.communicationFailed("Server send failed: \(error)")
         }
     }
     
     private func queryServerMode() throws -> String {
         guard let serverName = serverName else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         let process = Process()
@@ -268,26 +268,19 @@ class VimSession: SessionProtocol {
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw VimSessionError.communicationFailed("Mode query failed: \(error)")
+            throw GvimSessionError.communicationFailed("Mode query failed: \(error)")
         }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
 
-        let rawMode = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "n"
+        let rawMode = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "") ?? "n"
 
-        switch rawMode {
-        case "n", "no", "nov": return "n"  // normal mode
-        case "i", "ic", "ix": return "i"   // insert mode
-        case "v", "vs", "V", "Vs", "\u{16}": return "v"  // visual mode
-        case "r", "rv", "R", "Rv": return "R"         // replace mode
-        case "c", "cv": return "c"         // command mode
-        default: throw VimSessionError.invalidResponse("Invalid mode: \(rawMode)")
-        }
+        return rawMode
     }
     
     private func queryServerCursor() throws -> (row: Int, col: Int) {
         guard let serverName = serverName else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         let process = Process()
@@ -308,7 +301,7 @@ class VimSession: SessionProtocol {
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw VimSessionError.communicationFailed("Cursor query failed: \(error)")
+            throw GvimSessionError.communicationFailed("Cursor query failed: \(error)")
         }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
@@ -322,12 +315,12 @@ class VimSession: SessionProtocol {
             return (row: row, col: col)
         }
 
-        throw VimSessionError.invalidResponse("Failed to get cursor position: \(result)")
+        throw GvimSessionError.invalidResponse("Failed to get cursor position: \(result)")
     }
     
     private func queryBufferLines(start: Int, end: Int) throws -> [String] {
         guard let serverName = serverName else {
-            throw VimSessionError.notRunning
+            throw GvimSessionError.notRunning
         }
         
         let startLine = max(1, start + 1)
@@ -351,7 +344,7 @@ class VimSession: SessionProtocol {
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let error = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw VimSessionError.communicationFailed("Buffer lines query failed: \(error)")
+            throw GvimSessionError.communicationFailed("Buffer lines query failed: \(error)")
         }
         
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
@@ -408,7 +401,7 @@ class VimSession: SessionProtocol {
     }
 }
 
-enum VimSessionError: Error {
+enum GvimSessionError: Error {
     case startupFailed(Error)
     case communicationFailed(String)
     case invalidResponse(String)

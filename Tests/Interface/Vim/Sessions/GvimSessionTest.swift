@@ -1,7 +1,7 @@
 /*
 Author: <Chuanyu> (skewcy@gmail.com)
-VimSessionTest.swift (c) 2025
-Desc: Comprehensive tests for VimSession functionality
+GvimSessionTest.swift (c) 2025
+Desc: Comprehensive tests for GvimSession functionality
 Created:  2025-08-21T22:20:13.443Z
 */
 
@@ -9,10 +9,10 @@ import Testing
 import Foundation
 @testable import VimCafe
 
-// MARK: - Part 1: VimSession Basic Functionality Tests
-struct VimSessionBasicTests {
+// MARK: - Part 1: GvimSession Basic Functionality Tests
+struct GvimSessionBasicTests {
     
-    @Test func testVimSessionStartStop() throws {
+    @Test func testGvimSessionStartStop() throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         
         #expect(session.isRunning(), "Session should be running after creation")
@@ -22,7 +22,7 @@ struct VimSessionBasicTests {
         #expect(!session.isRunning(), "Session should not be running after stop")
     }
     
-    @Test func testVimSessionGetMode() async throws {
+    @Test func testGvimSessionGetMode() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -33,7 +33,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionSendInput() async throws {
+    @Test func testGvimSessionSendInput() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -52,7 +52,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionBufferOperations() async throws {
+    @Test func testGvimSessionBufferOperations() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -74,7 +74,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionCursorOperations() async throws {
+    @Test func testGvimSessionCursorOperations() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -99,7 +99,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionEmptyBuffer() async throws {
+    @Test func testGvimSessionEmptyBuffer() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -116,7 +116,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
     
-    @Test func testVimSessionTimeout() async throws {
+    @Test func testGvimSessionTimeout() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -126,7 +126,7 @@ struct VimSessionBasicTests {
         session.stop()
     }
 
-    @Test func testVimSessionMode() async throws {
+    @Test func testGvimSessionMode() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -165,8 +165,8 @@ struct VimSessionBasicTests {
     }
 }
 
-// MARK: - Part 2: Multiple VimSession Tests
-struct VimSessionMultipleInstanceTests {
+// MARK: - Part 2: Multiple GvimSession Tests
+struct GvimSessionMultipleInstanceTests {
     
     @Test func testMultipleSessionsIndependence() async throws {
         let session1 = try SessionManager.shared.createAndStartSession(type: .vim)
@@ -340,16 +340,16 @@ struct VimSessionMultipleInstanceTests {
     }
 }
 
-// MARK: - Part 3: VimSession Specific Features Tests
-struct VimSessionSpecificTests {
+// MARK: - Part 3: GvimSession Specific Features Tests
+struct GvimSessionSpecificTests {
     
-    @Test func testVimSessionWithCustomGvimPath() throws {
+    @Test func testGvimSessionWithCustomGvimPath() throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         
         #expect(session.isRunning(), "Session should be running after creation")
     }
     
-    @Test func testVimSessionVimscriptExecution() async throws {
+    @Test func testGvimSessionVimscriptExecution() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -365,7 +365,7 @@ struct VimSessionSpecificTests {
         session.stop()
     }
     
-    @Test func testVimSessionErrorHandling() async throws {
+    @Test func testGvimSessionErrorHandling() async throws {
         let session = try SessionManager.shared.createAndStartSession(type: .vim)
         try await Task.sleep(for: .milliseconds(200))
         
@@ -380,7 +380,7 @@ struct VimSessionSpecificTests {
         session.stop()
     }
     
-    @Test func testVimSessionServerNameUniqueness() throws {
+    @Test func testGvimSessionServerNameUniqueness() throws {
         let session1 = try SessionManager.shared.createAndStartSession(type: .vim)
         let session2 = try SessionManager.shared.createAndStartSession(type: .vim)
         
