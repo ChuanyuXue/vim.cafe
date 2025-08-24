@@ -13,8 +13,16 @@ protocol AlgorithmProtocol {
 
 struct SearchOptions {
     let timeOut: TimeInterval
-
+    let verbose: Bool
     let neighbors: NeighborsProtocol
     let pruning: PruningProtocol
     let heuristic: HeuristicProtocol
+    
+    init(timeOut: TimeInterval, verbose: Bool = false, neighbors: NeighborsProtocol, pruning: PruningProtocol, heuristic: HeuristicProtocol) {
+        self.timeOut = timeOut
+        self.verbose = verbose
+        self.neighbors = neighbors
+        self.pruning = pruning
+        self.heuristic = heuristic
+    }
 }

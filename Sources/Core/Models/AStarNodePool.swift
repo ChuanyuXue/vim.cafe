@@ -74,6 +74,10 @@ struct AStarNodePool: NodePoolProtocol {
         return nodeSet.contains(AnyHashable(node))
     }
     
+    func getAllNodes() -> [any NodeProtocol] {
+        return Array(heap)
+    }
+    
     private mutating func heapifyUp(_ index: Int) {
         let parentIndex = (index - 1) / 2
         if index > 0 && heap[index].priority < heap[parentIndex].priority {

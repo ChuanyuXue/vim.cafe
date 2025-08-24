@@ -18,8 +18,13 @@ class AStarAlgorithm: AlgorithmProtocol {
         let vimEngine = VimEngine(defaultState: initialState)
         
         while let currentNode = nodePool.pop() {
-            if Date().timeIntervalSince(startTime) > options.timeOut {
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > options.timeOut {
                 throw SearchError.timeout
+            }
+            
+            if options.verbose {
+                printSearchTable(currentNode: currentNode, nodePool: nodePool)
             }
             
             if currentNode.state == targetState {
@@ -29,8 +34,15 @@ class AStarAlgorithm: AlgorithmProtocol {
             let nextKeystrokes = options.neighbors.getNextKeystrokes(state: currentNode.state, target: targetState)
             
             for keystroke in nextKeystrokes {
+                let elapsed = Date().timeIntervalSince(startTime)
+                if elapsed > options.timeOut {
+                    throw SearchError.timeout
+                }
+                
                 let newPath = currentNode.keystrokePath + [keystroke]
                 let newState = try vimEngine.execKeystrokes(newPath)
+
+                print("newPath: \(encodeKeystrokes(newPath))")
                 
                 if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
                     continue
@@ -46,12 +58,38 @@ class AStarAlgorithm: AlgorithmProtocol {
                     cost: gCost,
                     heuristic: hCost
                 )
-                
                 nodePool.add(neighborNode)
             }
         }
         
         throw SearchError.noPathFound
+    }
+    
+    private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool) {
+        let allNodes = [currentNode] + nodePool.getAllNodes()
+        
+        for (index, node) in allNodes.enumerated() {
+            if let aStarNode = node as? AStarNode {
+                let buffer = formatBuffer(aStarNode.state.buffer)
+                let cursor = "[\(aStarNode.state.cursor.col)/\(aStarNode.state.cursor.row)]"
+                let mode = aStarNode.state.mode.shortMode
+                let marker = index == 0 ? "*" : " "
+                
+                print("\(marker) \(buffer) \(cursor) \(mode)")
+            }
+        }
+        print()
+    }
+    
+    private func formatBuffer(_ buffer: [String]) -> String {
+        let joined = buffer.joined(separator: " ")
+        let fixedWidth = 20
+        
+        if joined.count > fixedWidth {
+            return String(joined.prefix(fixedWidth))
+        } else {
+            return joined.padding(toLength: fixedWidth, withPad: " ", startingAt: 0)
+        }
     }
 }
 
