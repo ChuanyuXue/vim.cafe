@@ -42,8 +42,6 @@ class AStarAlgorithm: AlgorithmProtocol {
                 let newPath = currentNode.keystrokePath + [keystroke]
                 let newState = try vimEngine.execKeystrokes(newPath)
 
-                print("newPath: \(encodeKeystrokes(newPath))")
-                
                 if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
                     continue
                 }

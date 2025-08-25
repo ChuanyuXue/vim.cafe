@@ -9,7 +9,7 @@ import Testing
 import Foundation
 @testable import VimCafe
 
-private let sessionType = SessionType.vim
+private let sessionType = SessionType.nvim
 
 // MARK: - Part 1: VimEngine Basic Functionality Tests
 struct VimEngineBasicTests {

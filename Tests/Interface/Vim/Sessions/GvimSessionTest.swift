@@ -389,3 +389,80 @@ struct GvimSessionSpecificTests {
         #expect(session2.isRunning(), "Session 2 should be running after creation")
     }
 }
+
+// MARK: - Part 4: GvimSession Performance Tests
+struct GvimSessionPerformanceTests {
+    @Test func createSessionTime() async throws {
+        let startTime = Date()
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Session creation time: \(duration) seconds")
+        session.stop()
+    }
+
+    @Test func stopSessionTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        let startTime = Date()
+        session.stop()
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Session stop time: \(duration) seconds")
+    }
+
+    @Test func sendInputTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        try await Task.sleep(for: .milliseconds(200))
+        let startTime = Date()
+        try session.sendInput("i")
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Send input time: \(duration) seconds")
+        session.stop()
+    }
+
+    @Test func getModeTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        try await Task.sleep(for: .milliseconds(200))
+        let startTime = Date()
+        let mode = try session.getMode()
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Get mode time: \(duration) seconds")
+        session.stop()
+    }
+
+    @Test func getBufferLinesTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        try await Task.sleep(for: .milliseconds(200))
+        let startTime = Date()
+        let lines = try session.getBufferLines(buffer: 1, start: 0, end: -1)
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Get buffer lines time: \(duration) seconds")
+        session.stop()
+    }
+
+    @Test func getCursorPositionTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        try await Task.sleep(for: .milliseconds(200))
+        let startTime = Date()
+        let position = try session.getCursorPosition(window: 0)
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Get cursor position time: \(duration) seconds")
+        session.stop()
+    }
+
+    @Test func setBufferLinesTime() async throws {
+        let session = try SessionManager.shared.createAndStartSession(type: .vim)
+        try await Task.sleep(for: .milliseconds(200))
+        let startTime = Date()
+        let lines = ["Line 1", "Line 2", "Line 3"]
+        try session.setBufferLines(buffer: 1, start: 0, end: -1, lines: lines)
+        let endTime = Date()
+        let duration = endTime.timeIntervalSince(startTime)
+        print("⏱️ Set buffer lines time: \(duration) seconds")
+        session.stop()
+    }
+}

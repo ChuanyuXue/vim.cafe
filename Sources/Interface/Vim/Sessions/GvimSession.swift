@@ -9,7 +9,6 @@ import Foundation
 
 class GvimSession: SessionProtocol {
     private let gvimPath: String
-    private let vimrcPath: String
     private var isSessionRunning = false
     private var tempDirectory: URL?
     private var serverName: String?
@@ -20,7 +19,6 @@ class GvimSession: SessionProtocol {
     init() {
         self.sessionId = UUID().uuidString
         self.gvimPath = "/opt/homebrew/bin/gvim"
-        self.vimrcPath = Bundle.main.bundlePath + "/../../Sources/Interface/Golf/vimgolf.vimrc"
     }
 
     func getSessionId() -> String {
@@ -158,10 +156,11 @@ class GvimSession: SessionProtocol {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: gvimPath)
         process.arguments = [
-            "-u", vimrcPath,
+            "-n",
             "--servername", uniqueServerName,
             "-f",
             "--remote-tab", tempFile.path,
+            "--cmd", "set nocompatible | set scrolloff=3 | set showcmd | set number | set ruler | set visualbell t_vb= | set novisualbell | set hlsearch | set incsearch | set showmatch | set ignorecase | set smartcase | set ai | set tabstop=2 | set shiftwidth=2 | set softtabstop=2 | set backspace=indent,eol,start | set nobackup | syntax on | filetype on | filetype indent on | filetype plugin indent on"
         ]
         
         // Redirect output to avoid GUI dialogs
