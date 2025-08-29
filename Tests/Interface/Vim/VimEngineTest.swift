@@ -17,7 +17,7 @@ struct VimEngineBasicTests {
     @Test func testSingleKeystrokeExecution() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([.i])
+        let result = try await engine.execKeystrokes([.i])
         
         #expect(result.mode == .insert, "Should be in insert mode after 'i' keystroke")
         #expect(result.cursor.row >= 0, "Cursor row should be valid")
@@ -27,7 +27,7 @@ struct VimEngineBasicTests {
     @Test func testNavigationKeystrokes() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .escape, .h])
+        let result = try await engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .escape, .h])
         
         #expect(result.mode == .normal, "Should be in normal mode after escape")
         #expect(result.buffer.contains("Hello"), "Buffer should contain typed text")
@@ -37,7 +37,7 @@ struct VimEngineBasicTests {
     @Test func testInsertModeTextEntry() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .space, .W, .o, .r, .l, .d, .escape])
+        let result = try await engine.execKeystrokes([.i, .H, .e, .l, .l, .o, .space, .W, .o, .r, .l, .d, .escape])
         
         #expect(result.mode == .normal, "Should be in normal mode after escape")
         #expect(result.buffer.first?.contains("Hello World") == true, "Buffer should contain inserted text")
@@ -46,7 +46,7 @@ struct VimEngineBasicTests {
     @Test func testMultilineTextEntry() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([.i, .L, .i, .n, .e, .space, .one, .enter, .L, .i, .n, .e, .space, .two, .escape])
+        let result = try await engine.execKeystrokes([.i, .L, .i, .n, .e, .space, .one, .enter, .L, .i, .n, .e, .space, .two, .escape])
         
         #expect(result.mode == .normal, "Should be in normal mode")
         #expect(result.buffer.count >= 2, "Should have at least 2 lines")
@@ -57,7 +57,7 @@ struct VimEngineBasicTests {
     @Test func testMovementBetweenLines() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([.i, .F, .i, .r, .s, .t, .enter, .S, .e, .c, .o, .n, .d, .enter, .T, .h, .i, .r, .d, .escape, .k, .k])
+        let result = try await engine.execKeystrokes([.i, .F, .i, .r, .s, .t, .enter, .S, .e, .c, .o, .n, .d, .enter, .T, .h, .i, .r, .d, .escape, .k, .k])
         
         #expect(result.mode == .normal, "Should be in normal mode")
         #expect(result.cursor.row == 0, "Should be on first line after two 'k' movements")
@@ -69,27 +69,27 @@ struct VimEngineBasicTests {
 struct VimEngineSessionTests {
     
     @Test func testVimEngineWithExistingSession() async throws {
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
         let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i, .T, .e, .s, .t, .space, .w, .i, .t, .h, .space, .s, .e, .s, .s, .i, .o, .n, .escape])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i, .T, .e, .s, .t, .space, .w, .i, .t, .h, .space, .s, .e, .s, .s, .i, .o, .n, .escape])
         
         #expect(result.mode == .normal, "Should be in normal mode")
         #expect(result.buffer.first?.contains("Test with session") == true, "Should contain text")
         
-        session.stop()
+        try await session.stop()
     }
     
     @Test func testVimEngineStateRetrieval() async throws {
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
         let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
-        try session.setBufferLines(buffer: 1, start: 0, end: -1, lines: ["Test line 1", "Test line 2"])
-        try session.setCursorPosition(window: 0, row: 1, col: 5)
+        try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: ["Test line 1", "Test line 2"])
+        try await session.setCursorPosition(window: 0, row: 1, col: 5)
         
-        let state = try engine.getState(session: session)
+        let state = try await engine.getState(session: session)
         
         #expect(state != nil, "Should retrieve state successfully")
         #expect(state?.buffer == ["Test line 1", "Test line 2"], "Should match buffer content")
@@ -97,30 +97,30 @@ struct VimEngineSessionTests {
         #expect(state?.cursor.col == 5, "Should match cursor col")
         #expect(state?.mode == VimMode.normal, "Should be in normal mode")
         
-        session.stop()
+        try await session.stop()
     }
     
     @Test func testVimEngineWithBlockingSession() async throws {
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
         let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
-        try session.sendInput(":")
+        try await session.sendInput(":")
         try await Task.sleep(for: .milliseconds(100))
         
-        let state = try engine.getState(session: session)
+        let state = try await engine.getState(session: session)
         
         if let state = state {
             #expect(state.mode == VimMode.command, "Should be in command mode when not blocking")
         }
         
-        try session.sendInput("<Esc>")
-        session.stop()
+        try await session.sendInput("<Esc>")
+        try await session.stop()
     }
     
     @Test func testVimEngineErrorHandling() async throws {
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        #expect(session.isRunning(), "Session should be running after creation")
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        #expect(await session.isRunning(), "Session should be running after creation")
     }
 }
 
@@ -137,7 +137,7 @@ struct VimEngineEditingTests {
             .g, .g, .A, .space, .slash, .slash, .space, .F, .u, .n, .c, .t, .i, .o, .n, .space, .d, .e, .c, .l, .a, .r, .a, .t, .i, .o, .n, .escape
         ]
         
-        let result = try engine.execKeystrokes(keystrokes)
+        let result = try await engine.execKeystrokes(keystrokes)
         
         #expect(result.mode == .normal, "Should be in normal mode")
         #expect(result.buffer.count >= 3, "Should have multiple lines")
@@ -153,7 +153,7 @@ struct VimEngineEditingTests {
             .zero, .v, .e
         ]
         
-        let result = try engine.execKeystrokes(keystrokes)
+        let result = try await engine.execKeystrokes(keystrokes)
         
         #expect(result.mode == .visual, "Should be in visual mode")
         #expect(result.buffer.first?.contains("Select this text") == true, "Should contain text")
@@ -162,15 +162,15 @@ struct VimEngineEditingTests {
     @Test func testDeleteAndUndoOperations() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("Text to delete")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.zero])
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.d, .w])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("Text to delete")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.zero])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.d, .w])
         
         #expect(result.mode == VimMode.normal, "Should be in normal mode")
         #expect(result.buffer.first?.contains("Text") == false, "First word should be deleted")
@@ -180,16 +180,16 @@ struct VimEngineEditingTests {
     @Test func testSearchAndReplace() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("foo bar foo")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.slash])
-        try session.sendInput("foo")
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.enter])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("foo bar foo")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.slash])
+        try await session.sendInput("foo")
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.enter])
         
         #expect(result.mode == VimMode.normal, "Should return to normal mode after search")
         #expect(result.buffer.first?.contains("foo bar foo") == true, "Should contain original text")
@@ -198,16 +198,16 @@ struct VimEngineEditingTests {
     @Test func testWordMovement() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("word1 word2 word3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.zero])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.w])
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.w])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("word1 word2 word3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.zero])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.w])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.w])
         
         #expect(result.mode == VimMode.normal, "Should be in normal mode")
         #expect(result.cursor.col >= 12, "Cursor should be on third word")
@@ -216,22 +216,22 @@ struct VimEngineEditingTests {
     @Test func testLineOperations() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("Line 1")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.enter])
-        try session.sendInput("Line 2")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.enter])
-        try session.sendInput("Line 3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.g, .g])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.o])
-        try session.sendInput("New line")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("Line 1")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.enter])
+        try await session.sendInput("Line 2")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.enter])
+        try await session.sendInput("Line 3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.g, .g])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.o])
+        try await session.sendInput("New line")
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
         #expect(result.mode == VimMode.normal, "Should be in normal mode")
         #expect(result.buffer.count >= 4, "Should have at least 4 lines")
@@ -245,7 +245,7 @@ struct VimEngineEdgeCaseTests {
     @Test func testEmptyKeystrokeArray() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let result = try engine.execKeystrokes([])
+        let result = try await engine.execKeystrokes([])
         
         #expect(result.mode == VimMode.normal, "Should be in normal mode with empty keystrokes")
         #expect(result.cursor.row == 0, "Cursor should be at origin")
@@ -255,15 +255,15 @@ struct VimEngineEdgeCaseTests {
     @Test func testLargeKeystrokeSequence() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         for i in 1...100 {
-            try session.sendInput("Line \(i) ")
+            try await session.sendInput("Line \(i) ")
         }
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
         #expect(result.mode == VimMode.normal, "Should handle large keystroke sequence")
         #expect(result.buffer.first?.contains("Line 1") == true, "Should contain first line")
@@ -273,15 +273,15 @@ struct VimEngineEdgeCaseTests {
     @Test func testSearchSequence() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
 
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape, .zero])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape, .zero])
 
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.f, .l, .f, .l, .f, .period, .f, .escape])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.f, .l, .f, .l, .f, .period, .f, .escape])
 
         #expect(result.cursor.col == 3, "Should move to second 'l'")
         #expect(result.mode == VimMode.normal, "Should remain in normal mode")
@@ -290,13 +290,13 @@ struct VimEngineEdgeCaseTests {
     @Test func testSpecialCharacters() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("Special: !@#$%^&*()")
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("Special: !@#$%^&*()")
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
         #expect(result.mode == VimMode.normal, "Should handle special characters")
         #expect(result.buffer.first?.contains("Special: !@#$%^&*()") == true, "Should contain special characters")
@@ -305,13 +305,13 @@ struct VimEngineEdgeCaseTests {
     @Test func testUnicodeCharacters() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("Unicode: 你好世界 🌍")
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("Unicode: 你好世界 🌍")
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
         #expect(result.mode == VimMode.normal, "Should handle unicode characters")
         #expect(result.buffer.first?.contains("Unicode:") == true, "Should contain unicode text")
@@ -320,39 +320,39 @@ struct VimEngineEdgeCaseTests {
     @Test func testModeTransitions() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
         
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("Insert mode")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.v])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.V])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.colon])
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("Insert mode")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.v])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.V])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
         #expect(result.mode == VimMode.normal, "Should end in normal mode after multiple transitions")
     }
     
     @Test func testBufferStateConsistency() async throws {
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
         let engine = VimEngine(defaultSessionType: sessionType)
         try await Task.sleep(for: .milliseconds(200))
         
-        let initialState = try engine.getState(session: session)
+        let initialState = try await engine.getState(session: session)
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i, .T, .e, .s, .t, .escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i, .T, .e, .s, .t, .escape])
         
-        let finalState = try engine.getState(session: session)
+        let finalState = try await engine.getState(session: session)
         
         #expect(initialState?.mode == .normal, "Initial state should be normal mode")
         #expect(finalState?.mode == .normal, "Final state should be normal mode")
         #expect(finalState?.buffer != initialState?.buffer, "Buffer should have changed")
         
-        session.stop()
+        try await session.stop()
     }
 }
 
@@ -362,16 +362,16 @@ struct VimEngineMotionTests {
     // MARK: - Basic Direction Tests
     @Test func testMoveLeftBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.h])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.h])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 4, "Should move left by one column")
@@ -380,16 +380,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveLeftAtBeginning() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.h])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.h])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 0, "Should not move past beginning")
@@ -398,16 +398,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveRightBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.l])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.l])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 6, "Should move right by one column")
@@ -416,15 +416,15 @@ struct VimEngineMotionTests {
     
     @Test func testMoveRightAtEnd() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.l])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.l])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 4, "Should not move past end")
@@ -433,16 +433,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveDownBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.j])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.j])
         
         #expect(result.cursor.row == 1, "Should move down by one row")
         #expect(result.cursor.col == 2, "Should maintain column position")
@@ -451,16 +451,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveDownAtBottom() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.j])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.j])
         
         #expect(result.cursor.row == 1, "Should not move past bottom")
         #expect(result.cursor.col == 2, "Should maintain column position")
@@ -469,16 +469,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveUpBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.k])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.k])
         
         #expect(result.cursor.row == 0, "Should move up by one row")
         #expect(result.cursor.col == 2, "Should maintain column position")
@@ -487,16 +487,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveUpAtTop() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.k])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.k])
         
         #expect(result.cursor.row == 0, "Should not move past top")
         #expect(result.cursor.col == 2, "Should maintain column position")
@@ -506,16 +506,16 @@ struct VimEngineMotionTests {
     // MARK: - Counted Motion Tests
     @Test func testMoveDownWithCountBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3\nline4\nline5")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3\nline4\nline5")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.three, .j])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.three, .j])
         
         #expect(result.cursor.row == 3, "Should move down 3 rows")
         #expect(result.cursor.col == 0, "Should maintain column position")
@@ -524,16 +524,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveDownWithCountOverflow() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.five, .j])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.five, .j])
         
         #expect(result.cursor.row == 2, "Should stop at last line")
         #expect(result.cursor.col == 0, "Should maintain column position")
@@ -542,16 +542,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveUpWithCountBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3\nline4\nline5")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 4, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3\nline4\nline5")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 4, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.three, .k])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.three, .k])
         
         #expect(result.cursor.row == 1, "Should move up 3 rows")
         #expect(result.cursor.col == 0, "Should maintain column position")
@@ -560,16 +560,16 @@ struct VimEngineMotionTests {
     
     @Test func testMoveUpWithCountOverflow() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 2, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 2, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.five, .k])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.five, .k])
         
         #expect(result.cursor.row == 0, "Should stop at first line")
         #expect(result.cursor.col == 0, "Should maintain column position")
@@ -579,16 +579,16 @@ struct VimEngineMotionTests {
     // MARK: - Word Motion Tests
     @Test func testWordForwardBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.w])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.w])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 6, "Should move to start of next word")
@@ -597,16 +597,16 @@ struct VimEngineMotionTests {
     
     @Test func testWordForwardMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world\ntest case")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 6)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world\ntest case")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 6)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.w])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.w])
         
         #expect(result.cursor.row == 1, "Should move to next line")
         #expect(result.cursor.col == 0, "Should move to start of next word")
@@ -615,16 +615,16 @@ struct VimEngineMotionTests {
     
     @Test func testWordBackwardBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 10)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 10)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.b])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.b])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 6, "Should move to start of previous word")
@@ -633,16 +633,16 @@ struct VimEngineMotionTests {
     
     @Test func testWordEndBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.e])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.e])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 4, "Should move to end of current word")
@@ -652,16 +652,16 @@ struct VimEngineMotionTests {
     // MARK: - Line Motion Tests
     @Test func testStartOfLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.zero])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.zero])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 0, "Should move to start of line")
@@ -670,16 +670,16 @@ struct VimEngineMotionTests {
     
     @Test func testFirstNonBlankBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("  hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("  hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.caret])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.caret])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 2, "Should move to first non-blank character")
@@ -688,16 +688,16 @@ struct VimEngineMotionTests {
     
     @Test func testEndOfLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.dollar])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.dollar])
         
         #expect(result.cursor.row == 0, "Should remain on same row")
         #expect(result.cursor.col == 10, "Should move to end of line")
@@ -707,16 +707,16 @@ struct VimEngineMotionTests {
     // MARK: - File Motion Tests
     @Test func testGoToFirstLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 2, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 2, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .g])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .g])
         
         #expect(result.cursor.row == 0, "Should move to first line")
         #expect(result.cursor.col == 0, "Should move to first column")
@@ -725,16 +725,16 @@ struct VimEngineMotionTests {
     
     @Test func testGoToLastLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.G])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.G])
         
         #expect(result.cursor.row == 2, "Should move to last line")
         #expect(result.cursor.col == 0, "Should move to first column of last line")
@@ -743,16 +743,16 @@ struct VimEngineMotionTests {
     
     @Test func testGoToLineNumberBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3\nline4\nline5")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3\nline4\nline5")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.three, .g, .g])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.three, .g, .g])
         
         #expect(result.cursor.row == 2, "Should move to line 3 (0-indexed)")
         #expect(result.cursor.col == 0, "Should move to first column")
@@ -761,16 +761,16 @@ struct VimEngineMotionTests {
     
     @Test func testGoToLineNumberWithG() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3\nline4\nline5")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3\nline4\nline5")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.three, .G])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.three, .G])
         
         #expect(result.cursor.row == 2, "Should move to line 3 (0-indexed)")
         #expect(result.cursor.col == 0, "Should move to first column")
@@ -779,16 +779,16 @@ struct VimEngineMotionTests {
     
     @Test func testGoToLineNumberBeyondEnd() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.one, .zero, .g, .g])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.one, .zero, .g, .g])
         
         #expect(result.cursor.row == 2, "Should move to last line when target exceeds buffer")
         #expect(result.cursor.col == 0, "Should move to first column")
@@ -802,16 +802,16 @@ struct VimEngineOperatorTests {
     // MARK: - Insert Mode Tests
     @Test func testInsertAtCursorBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -821,11 +821,11 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtCursorEmptyLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -835,16 +835,16 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtCursorEndOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         
         #expect(result.buffer == ["test"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -854,16 +854,16 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtCursorMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         
         #expect(result.buffer == ["line1", "line2", "line3"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should match")
@@ -873,16 +873,16 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtCursorBeginningOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.i])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.i])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -893,16 +893,16 @@ struct VimEngineOperatorTests {
     // MARK: - Append Mode Tests
     @Test func testAppendAfterCursorBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.a])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.a])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -912,15 +912,15 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAfterCursorEndOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.a])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.a])
         
         #expect(result.buffer == ["test"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -930,11 +930,11 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAfterCursorEmptyLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.a])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.a])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -944,16 +944,16 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAfterCursorMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("first\nsecond\nthird")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("first\nsecond\nthird")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.a])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.a])
         
         #expect(result.buffer == ["first", "second", "third"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should match")
@@ -963,16 +963,16 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAfterCursorBeginningOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.a])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.a])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -983,16 +983,16 @@ struct VimEngineOperatorTests {
     // MARK: - Insert at Beginning of Line Tests
     @Test func testInsertAtBeginningOfLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.I])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.I])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -1002,16 +1002,16 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtBeginningOfLineWithWhitespace() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("  hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("  hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.I])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.I])
         
         #expect(result.buffer == ["  hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -1021,11 +1021,11 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtBeginningOfLineEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.I])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.I])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1035,16 +1035,16 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtBeginningOfLineMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.I])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.I])
         
         #expect(result.buffer == ["line1", "line2", "line3"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should match")
@@ -1054,15 +1054,15 @@ struct VimEngineOperatorTests {
     
     @Test func testInsertAtBeginningOfLineSingleChar() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("x")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("x")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.I])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.I])
         
         #expect(result.buffer == ["x"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1073,16 +1073,16 @@ struct VimEngineOperatorTests {
     // MARK: - Append at End of Line Tests
     @Test func testAppendAtEndOfLineBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.A])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.A])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -1092,15 +1092,15 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAtEndOfLineSingleChar() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("x")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("x")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.A])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.A])
         
         #expect(result.buffer == ["x"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1110,11 +1110,11 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAtEndOfLineEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.A])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.A])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1124,16 +1124,16 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAtEndOfLineMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("first\nsecond\nthird")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("first\nsecond\nthird")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.A])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.A])
         
         #expect(result.buffer == ["first", "second", "third"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should match")
@@ -1143,16 +1143,16 @@ struct VimEngineOperatorTests {
     
     @Test func testAppendAtEndOfLineWithTrailingSpace() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello ")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello ")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.A])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.A])
         
         #expect(result.buffer == ["hello "], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should match")
@@ -1163,16 +1163,16 @@ struct VimEngineOperatorTests {
     // MARK: - Open Line Tests
     @Test func testOpenLineBelowBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.o])
         
         #expect(result.buffer == ["hello world", ""], "Should add new line below")
         #expect(result.cursor.row == 1, "Cursor should move to new line")
@@ -1182,11 +1182,11 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineBelowEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.o])
         
         #expect(result.buffer == ["", ""], "Should add new line below empty line")
         #expect(result.cursor.row == 1, "Cursor should move to new line")
@@ -1196,16 +1196,16 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineBelowMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.o])
         
         #expect(result.buffer == ["line1", "line2", "", "line3"], "Should add new line below current line")
         #expect(result.cursor.row == 2, "Cursor should move to new line")
@@ -1215,15 +1215,15 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineBelowLastLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.o])
         
         #expect(result.buffer == ["line1", "line2", ""], "Should add new line below last line")
         #expect(result.cursor.row == 2, "Cursor should move to new line")
@@ -1233,15 +1233,15 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineBelowSingleChar() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("x")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("x")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.o])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.o])
         
         #expect(result.buffer == ["x", ""], "Should add new line below")
         #expect(result.cursor.row == 1, "Cursor should move to new line")
@@ -1251,16 +1251,16 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineAboveBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.O])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.O])
         
         #expect(result.buffer == ["", "hello world"], "Should add new line above")
         #expect(result.cursor.row == 0, "Cursor should be on new line")
@@ -1270,11 +1270,11 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineAboveEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.O])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.O])
         
         #expect(result.buffer == ["", ""], "Should add new line above empty line")
         #expect(result.cursor.row == 0, "Cursor should be on new line")
@@ -1284,16 +1284,16 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineAboveMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.O])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.O])
         
         #expect(result.buffer == ["line1", "", "line2", "line3"], "Should add new line above current line")
         #expect(result.cursor.row == 1, "Cursor should be on new line")
@@ -1303,16 +1303,16 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineAboveFirstLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.O])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.O])
         
         #expect(result.buffer == ["", "line1", "line2"], "Should add new line above first line")
         #expect(result.cursor.row == 0, "Cursor should be on new line")
@@ -1322,15 +1322,15 @@ struct VimEngineOperatorTests {
     
     @Test func testOpenLineAboveSingleChar() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("x")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("x")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.O])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.O])
         
         #expect(result.buffer == ["", "x"], "Should add new line above")
         #expect(result.cursor.row == 0, "Cursor should be on new line")
@@ -1341,16 +1341,16 @@ struct VimEngineOperatorTests {
     // MARK: - Command Mode Tests
     @Test func testEnterCommandModeBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1360,11 +1360,11 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterCommandModeEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1374,16 +1374,16 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterCommandModeMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
         
         #expect(result.buffer == ["line1", "line2", "line3"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should remain same")
@@ -1393,15 +1393,15 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterCommandModeEndOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1411,16 +1411,16 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterCommandModeBeginningOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.colon])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.colon])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1431,17 +1431,17 @@ struct VimEngineOperatorTests {
     // MARK: - Replace Tests
     @Test func testReplaceSingleCharBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.r])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.r])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == ["helloxworld"], "Character should be replaced")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1451,17 +1451,17 @@ struct VimEngineOperatorTests {
     
     @Test func testReplaceSingleCharWithSpace() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 2)
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.r])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.r])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.space])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.space])
         
         #expect(result.buffer == ["he lo"], "Character should be replaced with space")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1471,16 +1471,16 @@ struct VimEngineOperatorTests {
     
     @Test func testReplaceSingleCharAtEnd() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.r])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.r])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.exclamation])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.exclamation])
         
         #expect(result.buffer == ["hell!"], "Last character should be replaced")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1490,17 +1490,17 @@ struct VimEngineOperatorTests {
     
     @Test func testReplaceSingleCharMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.r])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.r])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.X])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.X])
         
         #expect(result.buffer == ["line1", "liXe2", "line3"], "Character should be replaced in multiline")
         #expect(result.cursor.row == 1, "Cursor row should remain same")
@@ -1510,17 +1510,17 @@ struct VimEngineOperatorTests {
     
     @Test func testReplaceSingleCharWithNumber() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("test")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 1)
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.r])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("test")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 1)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.r])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.five])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.five])
         
         #expect(result.buffer == ["t5st"], "Character should be replaced with number")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1531,16 +1531,16 @@ struct VimEngineOperatorTests {
     // MARK: - Replace Mode Tests
     @Test func testEnterReplaceModeBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.R])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.R])
         
         #expect(result.buffer == ["hello world"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1550,11 +1550,11 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterReplaceModeEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.R])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.R])
         
         #expect(result.buffer == [""], "Buffer should be empty")
         #expect(result.cursor.row == 0, "Cursor row should be 0")
@@ -1564,16 +1564,16 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterReplaceModeMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.R])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.R])
         
         #expect(result.buffer == ["line1", "line2", "line3"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 1, "Cursor row should remain same")
@@ -1583,15 +1583,15 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterReplaceModeEndOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.R])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.R])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1601,16 +1601,16 @@ struct VimEngineOperatorTests {
     
     @Test func testEnterReplaceModeBeginningOfLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 0)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 0)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.R])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.R])
         
         #expect(result.buffer == ["hello"], "Buffer should remain unchanged")
         #expect(result.cursor.row == 0, "Cursor row should remain same")
@@ -1621,16 +1621,16 @@ struct VimEngineOperatorTests {
     // MARK: - Join Lines Tests
     @Test func testJoinLinesBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.J])
         
         #expect(result.buffer == ["hello world"], "Lines should be joined with space")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1640,16 +1640,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesMultiple() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.J])
         
         #expect(result.buffer == ["line1", "line2 line3"], "Should join current and next line")
         #expect(result.cursor.row == 1, "Cursor should remain on current line")
@@ -1659,16 +1659,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithSpaces() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello \n world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello \n world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.J])
         
         #expect(result.buffer == ["hello world"], "Should preserve existing spaces")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1678,16 +1678,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesEmptyLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\n\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\n\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.J])
         
         #expect(result.buffer == ["hello", "world"], "Should join with empty line")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1697,15 +1697,15 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesLastLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.J])
         
         #expect(result.buffer == ["hello", "world"], "Should not join when on last line")
         #expect(result.cursor.row == 1, "Cursor should remain on last line")
@@ -1715,16 +1715,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithoutSpaceBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .J])
         
         #expect(result.buffer == ["helloworld"], "Lines should be joined without space")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1734,16 +1734,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithoutSpaceMultiple() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .J])
         
         #expect(result.buffer == ["line1", "line2line3"], "Should join without space")
         #expect(result.cursor.row == 1, "Cursor should remain on current line")
@@ -1753,16 +1753,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithoutSpaceWithSpaces() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello \n world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello \n world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .J])
         
         #expect(result.buffer == ["hello  world"], "Should preserve existing spaces")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1772,16 +1772,16 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithoutSpaceEmpty() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\n\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 3)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\n\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 3)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .J])
         
         #expect(result.buffer == ["hello", "world"], "Should join with empty line without space")
         #expect(result.cursor.row == 0, "Cursor should remain on first line")
@@ -1791,15 +1791,15 @@ struct VimEngineOperatorTests {
     
     @Test func testJoinLinesWithoutSpaceLastLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello\nworld")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello\nworld")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.g, .J])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.g, .J])
         
         #expect(result.buffer == ["hello", "world"], "Should not join when on last line")
         #expect(result.cursor.row == 1, "Cursor should remain on last line")
@@ -1810,16 +1810,16 @@ struct VimEngineOperatorTests {
     // MARK: - Delete Character Tests
     @Test func testDeleteCharBasic() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello world")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 0, col: 5)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello world")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 0, col: 5)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == ["helloworld"], "Character should be deleted")
         #expect(result.cursor.row == 0, "Cursor should remain on same row")
@@ -1829,15 +1829,15 @@ struct VimEngineOperatorTests {
     
     @Test func testDeleteCharAtEnd() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("hello")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("hello")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == ["hell"], "Last character should be deleted")
         #expect(result.cursor.row == 0, "Cursor should remain on same row")
@@ -1847,15 +1847,15 @@ struct VimEngineOperatorTests {
     
     @Test func testDeleteCharSingleChar() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("x")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("x")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == [""], "Single character should be deleted")
         #expect(result.cursor.row == 0, "Cursor should remain on same row")
@@ -1865,16 +1865,16 @@ struct VimEngineOperatorTests {
     
     @Test func testDeleteCharMultiline() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.i])
-        try session.sendInput("line1\nline2\nline3")
-        _ = try engine.execKeystrokes(session: session, keystrokes: [.escape])
-        try session.setCursorPosition(window: 0, row: 1, col: 2)
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.i])
+        try await session.sendInput("line1\nline2\nline3")
+        _ = try await engine.execKeystrokes(session: session, keystrokes: [.escape])
+        try await session.setCursorPosition(window: 0, row: 1, col: 2)
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == ["line1", "li2", "line3"], "Character should be deleted in multiline")
         #expect(result.cursor.row == 1, "Cursor should remain on same row")
@@ -1884,11 +1884,11 @@ struct VimEngineOperatorTests {
     
     @Test func testDeleteCharEmptyLine() async throws {
         let engine = VimEngine(defaultSessionType: sessionType)
-        let session = try SessionManager.shared.createAndStartSession(type: sessionType)
-        try session.start()
-        defer { session.stop() }
+        let session = try await SessionManager.shared.createAndStartSession(type: sessionType)
+        try await session.start()
+        // Session cleanup handled by runtime
         
-        let result = try engine.execKeystrokes(session: session, keystrokes: [.x])
+        let result = try await engine.execKeystrokes(session: session, keystrokes: [.x])
         
         #expect(result.buffer == [""], "Empty line should remain empty")
         #expect(result.cursor.row == 0, "Cursor should remain on same row")

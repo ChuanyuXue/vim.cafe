@@ -30,7 +30,7 @@ struct TestNode: NodeProtocol {
     }
 }
 
-@Test func testNodePoolBasicOperations() {
+@Test func testNodePoolBasicOperations() async {
     let state1 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 0), mode: .normal)
     let state2 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 1), mode: .normal)
     let state3 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 2), mode: .normal)
@@ -39,20 +39,20 @@ struct TestNode: NodeProtocol {
     let node2 = TestNode(state: state2, priority: 1.0)
     let node3 = TestNode(state: state3, priority: 2.0)
     
-    var pool = AStarNodePool()
+    let pool = AStarNodePool()
     
-    #expect(pool.isEmpty())
-    #expect(pool.count() == 0)
+    #expect(await pool.isEmpty())
+    #expect(await pool.count() == 0)
     
-    pool.add(node1)
-    pool.add(node2)
-    pool.add(node3)
+    await pool.add(node1)
+    await pool.add(node2)
+    await pool.add(node3)
     
-    #expect(!pool.isEmpty())
-    #expect(pool.count() == 3)
+    #expect(!(await pool.isEmpty()))
+    #expect(await pool.count() == 3)
 }
 
-@Test func testNodePoolPriorityOrdering() {
+@Test func testNodePoolPriorityOrdering() async {
     let state1 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 0), mode: .normal)
     let state2 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 1), mode: .normal)
     let state3 = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 2), mode: .normal)
@@ -61,33 +61,33 @@ struct TestNode: NodeProtocol {
     let node2 = TestNode(state: state2, priority: 1.0)
     let node3 = TestNode(state: state3, priority: 2.0)
     
-    var pool = AStarNodePool()
-    pool.add(node1)
-    pool.add(node2)
-    pool.add(node3)
+    let pool = AStarNodePool()
+    await pool.add(node1)
+    await pool.add(node2)
+    await pool.add(node3)
     
-    let first = pool.pop()
+    let first = await pool.pop()
     #expect(first?.priority == 1.0)
     
-    let second = pool.pop()
+    let second = await pool.pop()
     #expect(second?.priority == 2.0)
     
-    let third = pool.pop()
+    let third = await pool.pop()
     #expect(third?.priority == 3.0)
     
-    #expect(pool.isEmpty())
+    #expect(await pool.isEmpty())
 }
 
-@Test func testNodePoolDuplicateHandling() {
+@Test func testNodePoolDuplicateHandling() async {
     let state = VimState(buffer: ["test"], cursor: VimCursor(row: 0, col: 0), mode: .normal)
     let node1 = TestNode(state: state, priority: 1.0)
     let node2 = TestNode(state: state, priority: 2.0)
     
-    var pool = AStarNodePool()
-    pool.add(node1)
-    pool.add(node2)
+    let pool = AStarNodePool()
+    await pool.add(node1)
+    await pool.add(node2)
     
-    #expect(pool.count() == 1)
-    #expect(pool.contains(node1))
-    #expect(pool.contains(node2))
+    #expect(await pool.count() == 1)
+    #expect(await pool.contains(node1))
+    #expect(await pool.contains(node2))
 }

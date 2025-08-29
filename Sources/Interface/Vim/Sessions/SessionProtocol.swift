@@ -9,17 +9,17 @@ protocol SessionProtocol {
     func getSessionType() -> SessionType
     func getSessionId() -> String
 
-    func start() throws
-    func stop()
-    func isRunning() -> Bool
+    func start() async throws
+    func stop() async throws
+    func isRunning() async -> Bool
 
-    func sendInput(_ input: String) throws
-    func getInputs() throws -> [String]
-    func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String]
-    func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws
-    func getCursorPosition(window: Int) throws -> (row: Int, col: Int)
-    func setCursorPosition(window: Int, row: Int, col: Int) throws
-    func getMode() throws -> (mode: String, blocking: Bool)
+    func sendInput(_ input: String) async throws
+    func getInputs() async throws -> [String]
+    func getBufferLines(buffer: Int, start: Int, end: Int) async throws -> [String]
+    func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) async throws
+    func getCursorPosition(window: Int) async throws -> (row: Int, col: Int)
+    func setCursorPosition(window: Int, row: Int, col: Int) async throws
+    func getMode() async throws -> (mode: String, blocking: Bool)
 }
 
 enum SessionType: String, CaseIterable {

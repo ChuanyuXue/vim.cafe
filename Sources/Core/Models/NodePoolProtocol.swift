@@ -6,11 +6,11 @@ Created:  2025-08-20T20:01:15.939Z
 */
 
 protocol NodePoolProtocol {
-    mutating func add(_ node: any NodeProtocol)
-    mutating func pop() -> (any NodeProtocol)?
-    mutating func remove(_ node: any NodeProtocol)
+    func add(_ node: any NodeProtocol) async
+    func pop() async -> (any NodeProtocol)?
+    func remove(_ node: any NodeProtocol) async
 
-    func count() -> Int
-    func isEmpty() -> Bool
-    func contains(_ node: any NodeProtocol) -> Bool
+    func count() async -> Int
+    func isEmpty() async -> Bool
+    func contains(_ node: any NodeProtocol) async -> Bool
 }

@@ -28,7 +28,7 @@ class NvimSession: SessionProtocol {
         return .nvim
     }
 
-    func start() throws {
+    func start() async throws {
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
@@ -52,43 +52,42 @@ class NvimSession: SessionProtocol {
         self.outputPipe = outputPipe
     }
     
-    func stop() {
-        inputPipe?.fileHandleForWriting.closeFile()
-        outputPipe?.fileHandleForReading.closeFile()
-        
-        nvimProcess?.terminate()
+    func stop() async throws{
+        try await inputPipe?.fileHandleForWriting.close()
+        try await outputPipe?.fileHandleForReading.close()
+        try await nvimProcess?.terminate()
         
         nvimProcess = nil
         inputPipe = nil
         outputPipe = nil
     }
 
-    func isRunning() -> Bool {
+    func isRunning() async -> Bool {
         return nvimProcess != nil && 
                inputPipe != nil && 
                outputPipe != nil && 
                nvimProcess?.isRunning == true
     }
     
-    private func callRPC<T>(method: String, params: [Any], parser: ([Any]) throws -> T) throws -> T {
+    private func callRPC<T>(method: String, params: [Any], parser: ([Any]) throws -> T) async throws -> T {
         let msgId = nextMessageId()
         let request = NvimRPC.createRequest(id: msgId, method: method, params: params)
-        try sendMessage(request)
-        let response = try receiveResponse()
+        try await sendMessage(request)
+        let response = try await receiveResponse()
         return try parser(response)
     }
     
-    func sendInput(_ input: String) throws {
+    func sendInput(_ input: String) async throws {
         inputs.append(input)
-        try callRPC(method: "nvim_input", params: [input]) { _ in () }
+        try await callRPC(method: "nvim_input", params: [input]) { _ in () }
     }
     
-    func getInputs() throws -> [String] {
+    func getInputs() async throws -> [String] {
         return inputs
     }
 
-    func getBufferLines(buffer: Int, start: Int, end: Int) throws -> [String] {
-        try callRPC(method: "nvim_buf_get_lines", params: [buffer, start, end, false]) { response in
+    func getBufferLines(buffer: Int, start: Int, end: Int) async throws -> [String] {
+        try await callRPC(method: "nvim_buf_get_lines", params: [buffer, start, end, false]) { response in
             guard response.count >= 4, let result = response[3] as? [String] else {
                 throw NvimSessionError.invalidResponse("Failed to get buffer lines")
             }
@@ -96,12 +95,12 @@ class NvimSession: SessionProtocol {
         }
     }
     
-    func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) throws {
-        try callRPC(method: "nvim_buf_set_lines", params: [buffer, start, end, false, lines]) { _ in () }
+    func setBufferLines(buffer: Int, start: Int, end: Int, lines: [String]) async throws {
+        try await callRPC(method: "nvim_buf_set_lines", params: [buffer, start, end, false, lines]) { _ in () }
     }
     
-    func getCursorPosition(window: Int) throws -> (row: Int, col: Int) {
-        try callRPC(method: "nvim_win_get_cursor", params: [window]) { response in
+    func getCursorPosition(window: Int) async throws -> (row: Int, col: Int) {
+        try await callRPC(method: "nvim_win_get_cursor", params: [window]) { response in
             guard response.count >= 4, let result = response[3] as? [Int], result.count >= 2 else {
                 throw NvimSessionError.invalidResponse("Failed to get cursor position")
             }
@@ -109,12 +108,12 @@ class NvimSession: SessionProtocol {
         }
     }
     
-    func setCursorPosition(window: Int, row: Int, col: Int) throws {
-        try callRPC(method: "nvim_win_set_cursor", params: [window, [row + 1, col]]) { _ in () }
+    func setCursorPosition(window: Int, row: Int, col: Int) async throws {
+        try await callRPC(method: "nvim_win_set_cursor", params: [window, [row + 1, col]]) { _ in () }
     }
     
-    func getMode() throws -> (mode: String, blocking: Bool) {
-        try callRPC(method: "nvim_get_mode", params: []) { response in
+    func getMode() async throws -> (mode: String, blocking: Bool) {
+        try await callRPC(method: "nvim_get_mode", params: []) { response in
             guard response.count >= 4, let result = response[3] as? [String: Any],
                   let mode = result["mode"] as? String else {
                 throw NvimSessionError.invalidResponse("Failed to get current mode")
@@ -129,17 +128,30 @@ class NvimSession: SessionProtocol {
         return messageId
     }
     
-    private func sendMessage(_ message: [Any]) throws {
+      private func sendMessage(_ message: [Any]) async throws {
         guard let inputPipe = inputPipe else { throw NvimSessionError.notRunning }
         let data = try NvimRPC.encode(message)
         inputPipe.fileHandleForWriting.write(data)
     }
     
-    private func receiveResponse() throws -> [Any] {
+    private func receiveResponse() async throws -> [Any] {
         guard let outputPipe = outputPipe else { throw NvimSessionError.notRunning }
-        let data = outputPipe.fileHandleForReading.availableData
-        guard !data.isEmpty else { throw NvimSessionError.communicationFailed("No data received") }
-        return try NvimRPC.decode(data)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            Task {
+                do {
+                    let data = outputPipe.fileHandleForReading.availableData
+                    guard !data.isEmpty else {
+                        continuation.resume(throwing: NvimSessionError.communicationFailed("No data received"))
+                        return
+                    }
+                    let decoded = try NvimRPC.decode(data)
+                    continuation.resume(returning: decoded)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }
 

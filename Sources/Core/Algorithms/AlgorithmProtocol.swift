@@ -8,7 +8,7 @@ Created:  2025-08-20T19:15:06.347Z
 import Foundation
 
 protocol AlgorithmProtocol {
-    func search(from initialState: VimState, to targetState: VimState, options: SearchOptions) throws -> [VimKeystroke]
+    func search(from initialState: VimState, to targetState: VimState, options: SearchOptions) async throws -> [VimKeystroke]
 }
 
 struct SearchOptions {

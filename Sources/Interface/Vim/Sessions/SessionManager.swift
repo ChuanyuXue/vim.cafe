@@ -7,91 +7,74 @@ Created:  2025-08-23T00:00:00.000Z
 
 import Foundation
 
-class SessionManager {
+actor SessionManager {
     static let shared = SessionManager()
     
     private var sessions: [String: SessionProtocol] = [:]
-    private let sessionQueue = DispatchQueue(label: "session.manager.queue", attributes: .concurrent)
     
     private init() {}
     
-    func createAndStartSession(type: SessionType) throws -> SessionProtocol {
-        let session = try createSessionInstance(type: type)
+    func createAndStartSession(type: SessionType) async throws -> SessionProtocol {
+        let session = try await createSessionInstance(type: type)
         
-        try session.start()
+        try await session.start()
         
-        sessionQueue.async(flags: .barrier) {
-            self.sessions[session.getSessionId()] = session
-        }
+        sessions[session.getSessionId()] = session
         return session
     }
 
-    func copySession(id: String) throws -> SessionProtocol {
-        let session = try getSession(id: id)
+    func copySession(id: String) async throws -> SessionProtocol {
+        let session = try await getSession(id: id)
         let type = session.getSessionType()
 
-        let newSession = try createAndStartSession(type: type)
+        let newSession = try await createAndStartSession(type: type)
 
-        let inputs = try session.getInputs()
+        let inputs = try await session.getInputs()
         for input in inputs {
-            try newSession.sendInput(input)
+            try await newSession.sendInput(input)
         }
 
-        sessionQueue.async(flags: .barrier) {
-            self.sessions[newSession.getSessionId()] = newSession
-        }
+        sessions[newSession.getSessionId()] = newSession
 
         return newSession
     }
 
-    func copySession(inputs: [String], type: SessionType) throws -> SessionProtocol {
-        let newSession = try createAndStartSession(type: type)
+    func copySession(inputs: [String], type: SessionType) async throws -> SessionProtocol {
+        let newSession = try await createAndStartSession(type: type)
         for input in inputs {
-            try newSession.sendInput(input)
+            try await newSession.sendInput(input)
         }
-        sessionQueue.async(flags: .barrier) {
-            self.sessions[newSession.getSessionId()] = newSession
-        }
+        sessions[newSession.getSessionId()] = newSession
         return newSession
     }
     
-    func getSession(id: String) throws -> SessionProtocol {
-        let session = sessionQueue.sync {
-            return sessions[id]
-        }
-        
-        guard let session = session else {
+    func getSession(id: String) async throws -> SessionProtocol {
+        guard let session = sessions[id] else {
             throw SessionManagerError.sessionNotFound(id)
         }
         
         return session
     }
     
-    func stopSession(id: String) {
-        sessionQueue.async(flags: .barrier) {
-            if let session = self.sessions[id] {
-                session.stop()
-                self.sessions.removeValue(forKey: id)
-            }
+    func stopSession(id: String) async {
+        if let session = sessions[id] {
+            try? await session.stop()
+            sessions.removeValue(forKey: id)
         }
     }
     
-    func stopAllSessions() {
-        sessionQueue.async(flags: .barrier) {
-            for session in self.sessions.values {
-                session.stop()
-            }
-            self.sessions.removeAll()
+    func stopAllSessions() async {
+        for session in sessions.values {
+            try? await session.stop()
         }
+        sessions.removeAll()
     }
     
-    func activeSessionCount() -> Int {
-        return sessionQueue.sync {
-            return sessions.count
-        }
+    func activeSessionCount() async -> Int {
+        return sessions.count
     }
     
-    private func createSessionInstance(type: SessionType) throws -> SessionProtocol {
+    private func createSessionInstance(type: SessionType) async throws -> SessionProtocol {
         switch type {
         case .vim:
             return GvimSession()

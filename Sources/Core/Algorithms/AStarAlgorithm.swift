@@ -8,23 +8,25 @@ Created:  2025-08-20T19:21:04.471Z
 import Foundation
 
 class AStarAlgorithm: AlgorithmProtocol {
-    func search(from initialState: VimState, to targetState: VimState, options: SearchOptions) throws -> [VimKeystroke] {
+    func search(from initialState: VimState, to targetState: VimState, options: SearchOptions) async throws -> [VimKeystroke] {
         let startTime = Date()
         let heuristic = options.heuristic.estimate(state: initialState, target: targetState)
         let rootNode = AStarNode(state: initialState, keystrokePath: [], parent: nil, cost: 0, heuristic: heuristic)
 
-        var nodePool = AStarNodePool()
-        nodePool.add(rootNode)
+        let nodePool = AStarNodePool()
+        await nodePool.add(rootNode)
         let vimEngine = VimEngine(defaultState: initialState)
         
-        while let currentNode = nodePool.pop() {
+        while let currentNode = await nodePool.pop() {
             let elapsed = Date().timeIntervalSince(startTime)
             if elapsed > options.timeOut {
                 throw SearchError.timeout
             }
             
             if options.verbose {
-                printSearchTable(currentNode: currentNode, nodePool: nodePool)
+                Task {
+                    await printSearchTable(currentNode: currentNode, nodePool: nodePool, k: 10)
+                }
             }
             
             if currentNode.state == targetState {
@@ -40,7 +42,8 @@ class AStarAlgorithm: AlgorithmProtocol {
                 }
                 
                 let newPath = currentNode.keystrokePath + [keystroke]
-                let newState = try vimEngine.execKeystrokes(newPath)
+                // Note: Reconstruct by keystroke path is NECESSARY, because the VimState CANNOT capture the hidden state (e.g., registers)
+                let newState = try await vimEngine.execKeystrokes(newPath)
 
                 if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
                     continue
@@ -56,17 +59,19 @@ class AStarAlgorithm: AlgorithmProtocol {
                     cost: gCost,
                     heuristic: hCost
                 )
-                nodePool.add(neighborNode)
+                await nodePool.add(neighborNode)
             }
         }
         
         throw SearchError.noPathFound
     }
     
-    private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool) {
-        let allNodes = [currentNode] + nodePool.getAllNodes()
-        
-        for (index, node) in allNodes.enumerated() {
+    private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool, k: Int) async {
+        let poolNodes = await nodePool.getAllNodes()
+        let allNodes = [currentNode] + poolNodes
+        let topNodes = Array(allNodes.prefix(k))
+        print("Top \(k) nodes:")
+        for (index, node) in topNodes.enumerated() {
             if let aStarNode = node as? AStarNode {
                 let buffer = formatBuffer(aStarNode.state.buffer)
                 let cursor = "[\(aStarNode.state.cursor.col)/\(aStarNode.state.cursor.row)]"
@@ -76,7 +81,7 @@ class AStarAlgorithm: AlgorithmProtocol {
                 print("\(marker) \(buffer) \(cursor) \(mode)")
             }
         }
-        print()
+        print("--------------------------------")
     }
     
     private func formatBuffer(_ buffer: [String]) -> String {

@@ -8,7 +8,7 @@ Created:  2025-08-24T00:00:00.000Z
 import Testing
 @testable import VimCafe
 
-@Test func testAStarAlgorithmIdenticalStates() throws {
+@Test func testAStarAlgorithmIdenticalStates() async throws {
     let algorithm = AStarAlgorithm()
     
     let state = VimState(
@@ -24,11 +24,11 @@ import Testing
         heuristic: AStarHeuristic()
     )
     
-    let result = try algorithm.search(from: state, to: state, options: options)
+    let result = try await algorithm.search(from: state, to: state, options: options)
     #expect(result.isEmpty)
 }
 
-@Test func testAStarAlgorithmTimeout() throws {
+@Test func testAStarAlgorithmTimeout() async throws {
     let algorithm = AStarAlgorithm()
     
     let initialState = VimState(
@@ -50,12 +50,17 @@ import Testing
         heuristic: AStarHeuristic()
     )
     
-    #expect(throws: SearchError.timeout) {
-        _ = try algorithm.search(from: initialState, to: targetState, options: options)
+    do {
+        _ = try await algorithm.search(from: initialState, to: targetState, options: options)
+        Issue.record("Expected timeout error")
+    } catch SearchError.timeout {
+        // Expected
+    } catch {
+        Issue.record("Unexpected error: \(error)")
     }
 }
 
-@Test func testAStarAlgorithmSimpleTransformation() throws {
+@Test func testAStarAlgorithmSimpleTransformation() async throws {
     let algorithm = AStarAlgorithm()
     
     let initialState = VimState(
@@ -79,7 +84,7 @@ import Testing
     )
     
     do {
-        let result = try algorithm.search(from: initialState, to: targetState, options: options)
+        let result = try await algorithm.search(from: initialState, to: targetState, options: options)
         #expect(!result.isEmpty)
     } catch SearchError.timeout {
         // Expected for complex transformations

@@ -5,17 +5,19 @@ Desc: Priority queue implementation for A* algorithm nodes
 Created:  2025-08-21T01:23:31.704Z
 */
 
-struct AStarNodePool: NodePoolProtocol {
+actor AStarNodePool: NodePoolProtocol {
     private var heap: [any NodeProtocol] = []
     private var nodeSet: Set<AnyHashable> = []
     
-    init(_ initialNodes: [any NodeProtocol] = []) {
+    init() {}
+    
+    func initialize(with initialNodes: [any NodeProtocol] = []) {
         for node in initialNodes {
             add(node)
         }
     }
     
-    mutating func add(_ node: any NodeProtocol) {
+    func add(_ node: any NodeProtocol) {
         let nodeHash = AnyHashable(node)
         
         if nodeSet.contains(nodeHash) {
@@ -27,7 +29,7 @@ struct AStarNodePool: NodePoolProtocol {
         heapifyUp(heap.count - 1)
     }
     
-    mutating func pop() -> (any NodeProtocol)? {
+    func pop() -> (any NodeProtocol)? {
         guard !heap.isEmpty else { return nil }
         
         if heap.count == 1 {
@@ -45,7 +47,7 @@ struct AStarNodePool: NodePoolProtocol {
         return minNode
     }
     
-    mutating func remove(_ node: any NodeProtocol) {
+    func remove(_ node: any NodeProtocol) {
         let nodeHash = AnyHashable(node)
         guard nodeSet.contains(nodeHash) else { return }
         
@@ -78,7 +80,7 @@ struct AStarNodePool: NodePoolProtocol {
         return Array(heap)
     }
     
-    private mutating func heapifyUp(_ index: Int) {
+    private func heapifyUp(_ index: Int) {
         let parentIndex = (index - 1) / 2
         if index > 0 && heap[index].priority < heap[parentIndex].priority {
             heap.swapAt(index, parentIndex)
@@ -86,7 +88,7 @@ struct AStarNodePool: NodePoolProtocol {
         }
     }
     
-    private mutating func heapifyDown(_ index: Int) {
+    private func heapifyDown(_ index: Int) {
         let leftChild = 2 * index + 1
         let rightChild = 2 * index + 2
         var smallest = index
