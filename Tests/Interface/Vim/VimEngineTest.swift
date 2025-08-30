@@ -1897,6 +1897,7 @@ struct VimEngineOperatorTests {
     }
 
     @Test func testWqAndZZ() async throws {
+        signal(SIGPIPE, SIG_IGN)
         let engine = VimEngine(defaultSessionType: .nvim)
         
         _ = try await engine.execKeystrokes([.w, .q, .j, .j])
