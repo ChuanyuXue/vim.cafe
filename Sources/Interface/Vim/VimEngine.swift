@@ -11,11 +11,13 @@ class VimEngine {
     private let defaultState: VimState?
     private let sessionManager: SessionManager
     private let defaultSessionType: SessionType
-    
+    private let lru: VimStateLRU
+
     init(defaultState: VimState? = nil, sessionManager: SessionManager = .shared, defaultSessionType: SessionType = .nvim) {
         self.defaultState = defaultState
         self.sessionManager = sessionManager
         self.defaultSessionType = defaultSessionType
+        self.lru = VimStateLRU(capacity: 1000)
     }
     
     func execKeystrokes(session: SessionProtocol, keystrokes: [VimKeystroke]) async throws -> VimState {
@@ -23,43 +25,30 @@ class VimEngine {
             throw VimEngineError.nvimNotRunning
         }
 
-        let inputs = try await session.getInputs()
         try await session.sendInput(encodeKeystrokes(keystrokes))
 
-        if let lastState = try await getState(session: session) {
-            return lastState
+        if let state = try await getState(session: session) {
+            await lru.set(keystrokes, state)
+            return state
         }
 
+        var prefix = keystrokes
+        while !prefix.isEmpty {
+            prefix.removeLast()
+            if let state = await lru.get(prefix) {
+                return state
+            }
+        }
 
-        // Use new session for recursive call
-        let newSession = try await sessionManager.copySession(inputs: inputs, type: session.getSessionType())
-        let result = try await execKeystrokes(session: newSession, keystrokes: Array(keystrokes[0..<keystrokes.count - 1]))
-        await sessionManager.stopSession(id: newSession.getSessionId())
-        return result
+        return VimState(buffer: [], cursor: VimCursor(row: 0, col: 0), mode: .normal)
     }
 
     func execKeystrokes(_ keystrokes: [VimKeystroke]) async throws -> VimState {
-        let session = try await sessionManager.createAndStartSession(type: defaultSessionType)
-
-        if let defaultState = self.defaultState {
-            try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: defaultState.buffer)
-            try await session.setCursorPosition(window: 0, row: defaultState.cursor.row, col: defaultState.cursor.col)
-        }
+        let session = try await sessionManager.createAndStartSession(type: defaultSessionType, defaultState: defaultState)
 
         let result = try await execKeystrokes(session: session, keystrokes: keystrokes)
         try await session.stop()
         return result
-    }
-    
-    func execKeystrokes(_ keystrokes: [VimKeystroke], sessionId: String) async throws -> VimState {
-        let session = try await sessionManager.getSession(id: sessionId)
-        
-        if let defaultState = self.defaultState {
-            try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: defaultState.buffer)
-            try await session.setCursorPosition(window: 0, row: defaultState.cursor.row, col: defaultState.cursor.col)
-        }
-        
-        return try await execKeystrokes(session: session, keystrokes: keystrokes)
     }
     
     func getState(session: SessionProtocol) async throws -> VimState? {

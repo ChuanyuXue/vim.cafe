@@ -3,6 +3,9 @@ Author: <Chuanyu> (skewcy@gmail.com)
 VimStateLRU.swift (c) 2025
 Desc: LRU cache for storing VimState by keystroke sequences
 Created:  2025-08-30T00:00:00.000Z
+
+Should not use LRU but use a prefix tree and save state at leaf nodes. 
+Because we need to make sure the longest available state must be cached.
 */
 
 import Foundation

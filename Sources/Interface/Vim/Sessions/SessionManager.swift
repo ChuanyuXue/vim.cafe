@@ -23,6 +23,19 @@ actor SessionManager {
         return session
     }
 
+    func createAndStartSession(type: SessionType, defaultState: VimState?) async throws -> SessionProtocol {
+        let session = try await createSessionInstance(type: type)
+
+        if let defaultState = defaultState {
+            try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: defaultState.buffer)
+            try await session.setCursorPosition(window: 0, row: defaultState.cursor.row, col: defaultState.cursor.col)
+        }
+        try await session.start()
+
+        sessions[session.getSessionId()] = session
+        return session
+    }
+
     func copySession(id: String) async throws -> SessionProtocol {
         let session = try await getSession(id: id)
         let type = session.getSessionType()
