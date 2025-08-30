@@ -1895,4 +1895,73 @@ struct VimEngineOperatorTests {
         #expect(result.cursor.col == 0, "Cursor should remain at beginning")
         #expect(result.mode == .normal, "Should remain in normal mode")
     }
+
+    @Test func testWqAndZZ() async throws {
+        let engine = VimEngine(defaultSessionType: .nvim)
+        
+        _ = try await engine.execKeystrokes([.w, .q, .j, .j])
+        _ = try await engine.execKeystrokes([.Z, .Z, .g, .g])
+    }
+}   
+
+extension VimKeystroke {
+    static func random() -> VimKeystroke {
+        return allowedKeys.randomElement()!
+    }
+}
+
+struct VimEnginePerformanceTests {
+    @Test func testExecKeystrokesTime() async throws {
+        let engine = VimEngine(defaultSessionType: .nvim)
+        
+        // Randomly generate 100 keystrokes with length 20
+        // And collect timing data for distribution analysis
+        let length = 20
+        let keystrokes = (0..<100).map { _ in
+            var keystroke: [VimKeystroke] = []
+            for _ in 0..<length {
+                keystroke.append(VimKeystroke.random())
+            }
+            return keystroke
+        }
+        
+        var keystrokeTimes: [Double] = []
+        
+        let startTime = Date()
+        for keystroke in keystrokes {
+            let keystrokeStartTime = Date()
+            let _ = try await engine.execKeystrokes(keystroke)
+            let keystrokeEndTime = Date()
+            let keystrokeTime = keystrokeEndTime.timeIntervalSince(keystrokeStartTime)
+            keystrokeTimes.append(keystrokeTime)
+        }
+        let endTime = Date()
+        let totalDuration = endTime.timeIntervalSince(startTime)
+        
+        // Calculate distribution statistics
+        let sortedTimes = keystrokeTimes.sorted()
+        let count = sortedTimes.count
+        
+        let minTime = sortedTimes.first ?? 0.0
+        let minTimeKeystroke = keystrokes[keystrokeTimes.firstIndex(of: minTime)!]
+        let maxTime = sortedTimes.last ?? 0.0
+        let maxTimeKeystroke = keystrokes[keystrokeTimes.firstIndex(of: maxTime)!]
+        let averageTime = keystrokeTimes.reduce(0.0, +) / Double(count)
+        
+        // Calculate quartiles
+        let q1Index = count / 4
+        let q3Index = (3 * count) / 4
+        let q1Time = count > 0 ? sortedTimes[q1Index] : 0.0
+        let q3Time = count > 0 ? sortedTimes[q3Index] : 0.0
+        
+        // Print distribution summary
+        print("⏱️ Keystroke Timing Distribution Summary:")
+        print("   Total keystrokes: \(count)")
+        print("   Total duration: \(String(format: "%.4f", totalDuration)) seconds")
+        print("   Min time: \(String(format: "%.4f", minTime)) seconds - \(encodeKeystrokes(minTimeKeystroke))")
+        print("   Max time: \(String(format: "%.4f", maxTime)) seconds - \(encodeKeystrokes(maxTimeKeystroke))")
+        print("   Average time: \(String(format: "%.4f", averageTime)) seconds")
+        print("   1st Quartile (25%): \(String(format: "%.4f", q1Time)) seconds")
+        print("   3rd Quartile (75%): \(String(format: "%.4f", q3Time)) seconds")
+    }
 }

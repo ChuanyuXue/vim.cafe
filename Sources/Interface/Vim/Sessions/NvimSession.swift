@@ -40,7 +40,7 @@ class NvimSession: SessionProtocol {
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = Pipe()
-        
+
         do {
             try process.run()
         } catch {
@@ -53,9 +53,10 @@ class NvimSession: SessionProtocol {
     }
     
     func stop() async throws{
-        try await inputPipe?.fileHandleForWriting.close()
-        try await outputPipe?.fileHandleForReading.close()
-        try await nvimProcess?.terminate()
+        try inputPipe?.fileHandleForWriting.close()
+        try outputPipe?.fileHandleForReading.close()
+
+        nvimProcess?.terminate()
         
         nvimProcess = nil
         inputPipe = nil
@@ -130,8 +131,18 @@ class NvimSession: SessionProtocol {
     
       private func sendMessage(_ message: [Any]) async throws {
         guard let inputPipe = inputPipe else { throw NvimSessionError.notRunning }
+        
+        // Check if process is still running before writing to pipe
+        guard nvimProcess?.isRunning == true else { throw NvimSessionError.notRunning }
+        
         let data = try NvimRPC.encode(message)
-        inputPipe.fileHandleForWriting.write(data)
+        
+        do {
+            try inputPipe.fileHandleForWriting.write(contentsOf: data)
+        } catch {
+            // Handle SIGPIPE and other write errors by throwing our own error
+            throw NvimSessionError.communicationFailed("Failed to write to nvim process: \(error)")
+        }
     }
     
     private func receiveResponse() async throws -> [Any] {

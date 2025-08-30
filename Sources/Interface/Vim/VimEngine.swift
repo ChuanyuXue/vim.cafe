@@ -63,15 +63,23 @@ class VimEngine {
     }
     
     func getState(session: SessionProtocol) async throws -> VimState? {
-        let modeInfo = try await session.getMode()
+        // Check if session is still running before attempting RPC calls
+        guard await session.isRunning() else { return nil }
         
-        guard !modeInfo.blocking else { return nil }
+        do {
+            let modeInfo = try await session.getMode()
+            
+            guard !modeInfo.blocking else { return nil }
 
-        let vimMode = try await getMode(session: session)
-        let buffer = try await session.getBufferLines(buffer: 1, start: 0, end: -1)
-        let cursor = try await session.getCursorPosition(window: 0)
-        
-        return VimState(buffer: buffer, cursor: VimCursor(row: cursor.row, col: cursor.col), mode: vimMode)
+            let vimMode = try await getMode(session: session)
+            let buffer = try await session.getBufferLines(buffer: 1, start: 0, end: -1)
+            let cursor = try await session.getCursorPosition(window: 0)
+            
+            return VimState(buffer: buffer, cursor: VimCursor(row: cursor.row, col: cursor.col), mode: vimMode)
+        } catch {
+            // If RPC calls fail (likely due to process termination), return nil
+            return nil
+        }
     }
     
     func getMode(session: SessionProtocol) async throws -> VimMode {

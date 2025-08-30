@@ -17,7 +17,10 @@ class AStarAlgorithm: AlgorithmProtocol {
         await nodePool.add(rootNode)
         let vimEngine = VimEngine(defaultState: initialState)
         
+        var iterationCount = 0
+        
         while let currentNode = await nodePool.pop() {
+            iterationCount += 1
             let elapsed = Date().timeIntervalSince(startTime)
             if elapsed > options.timeOut {
                 throw SearchError.timeout
@@ -25,7 +28,8 @@ class AStarAlgorithm: AlgorithmProtocol {
             
             if options.verbose {
                 Task {
-                    await printSearchTable(currentNode: currentNode, nodePool: nodePool, k: 10)
+                    let avgSpeed = elapsed > 0 ? Double(iterationCount) / elapsed : 0
+                    await printSearchTable(currentNode: currentNode, nodePool: nodePool, k: 10, avgSpeed: avgSpeed, iterationCount: iterationCount)
                 }
             }
             
@@ -35,53 +39,71 @@ class AStarAlgorithm: AlgorithmProtocol {
             
             let nextKeystrokes = options.neighbors.getNextKeystrokes(state: currentNode.state, target: targetState)
             
-            for keystroke in nextKeystrokes {
-                let elapsed = Date().timeIntervalSince(startTime)
-                if elapsed > options.timeOut {
-                    throw SearchError.timeout
-                }
-                
-                let newPath = currentNode.keystrokePath + [keystroke]
-                // Note: Reconstruct by keystroke path is NECESSARY, because the VimState CANNOT capture the hidden state (e.g., registers)
-                let newState = try await vimEngine.execKeystrokes(newPath)
+            await withTaskGroup(of: AStarNode?.self) { group in
+                for keystroke in nextKeystrokes {
+                    group.addTask {
+                        let elapsed = Date().timeIntervalSince(startTime)
+                        if elapsed > options.timeOut {
+                            return nil
+                        }
+                        
+                        let newPath = currentNode.keystrokePath + [keystroke]
+                        
+                        // Note: Reconstruct by keystroke path is NECESSARY, because the VimState CANNOT capture the hidden state (e.g., registers)
+                        guard let newState = try? await vimEngine.execKeystrokes(newPath) else {
+                            return nil
+                        }
 
-                if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
-                    continue
+                        if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
+                            return nil
+                        }
+                        
+                        let gCost = (currentNode as! AStarNode).cost + 1.0
+                        let hCost = options.heuristic.estimate(state: newState, target: targetState)
+                        
+                        return AStarNode(
+                            state: newState,
+                            keystrokePath: newPath,
+                            parent: currentNode,
+                            cost: gCost,
+                            heuristic: hCost
+                        )
+                    }
                 }
                 
-                let gCost = (currentNode as! AStarNode).cost + 1.0
-                let hCost = options.heuristic.estimate(state: newState, target: targetState)
-                
-                let neighborNode = AStarNode(
-                    state: newState,
-                    keystrokePath: newPath,
-                    parent: currentNode,
-                    cost: gCost,
-                    heuristic: hCost
-                )
-                await nodePool.add(neighborNode)
+                for await neighborNode in group {
+                    if let node = neighborNode {
+                        await nodePool.add(node)
+                    }
+                }
             }
         }
         
         throw SearchError.noPathFound
     }
     
-    private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool, k: Int) async {
+    private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool, k: Int, avgSpeed: Double, iterationCount: Int) async {
         let poolNodes = await nodePool.getAllNodes()
         let allNodes = [currentNode] + poolNodes
         let topNodes = Array(allNodes.prefix(k))
-        print("Top \(k) nodes:")
+        
+        // Clear screen and move cursor to top
+        print("\u{1B}[2J\u{1B}[H", terminator: "")
+        
+        print("Iter: \(iterationCount) - \(String(format: "%.2f", avgSpeed)) iter/sec - Pool: \(poolNodes.count)")
         for (index, node) in topNodes.enumerated() {
             if let aStarNode = node as? AStarNode {
                 let buffer = formatBuffer(aStarNode.state.buffer)
                 let cursor = "[\(aStarNode.state.cursor.col)/\(aStarNode.state.cursor.row)]"
                 let mode = aStarNode.state.mode.shortMode
+                let depth = aStarNode.keystrokePath.count
                 let marker = index == 0 ? "*" : " "
                 
-                print("\(marker) \(buffer) \(cursor) \(mode)")
+                print("\(marker) \(buffer) \(cursor) \(mode) depth:\(depth)")
             }
         }
         print("--------------------------------")
+        fflush(stdout)
     }
     
     private func formatBuffer(_ buffer: [String]) -> String {
