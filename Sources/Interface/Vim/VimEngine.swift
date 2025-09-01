@@ -25,22 +25,39 @@ class VimEngine {
             throw VimEngineError.nvimNotRunning
         }
 
-        try await session.sendInput(encodeKeystrokes(keystrokes))
+        // Empty keystrokes, return default state
+        if keystrokes.isEmpty {
+            return defaultState ?? VimState(buffer: [], cursor: VimCursor(row: 0, col: 0), mode: .normal)
+        }
 
+        // Copy inputs in case of 
+        let inputs = try await session.getInputs()
+
+        // 1) Keystrokes state is in cache
+        if let state = await lru.get(keystrokes) {
+            return state
+        }
+
+        // 2) Keystrokes state not in cache, execute keystrokes and no blocking
+        try await session.sendInput(encodeKeystrokes(keystrokes))
         if let state = try await getState(session: session) {
             await lru.set(keystrokes, state)
             return state
         }
 
-        var prefix = keystrokes
-        while !prefix.isEmpty {
-            prefix.removeLast()
-            if let state = await lru.get(prefix) {
-                return state
-            }
+        // 3) Blocking, find the prefix in the cache
+        if let state = await lru.get(Array(keystrokes.dropLast())) {
+            // Update cache keystrokes == prefix when blocking
+            await lru.set(keystrokes, state)
+            return state
         }
 
-        return VimState(buffer: [], cursor: VimCursor(row: 0, col: 0), mode: .normal)
+        // 4) Prefix not in cache, fall back
+        // Copy a new session and execute the last keystroke
+        let newSession = try await sessionManager.copySession(inputs: inputs, type: session.getSessionType())
+        let state = try await execKeystrokes(session: newSession, keystrokes: Array(keystrokes.dropLast()))
+        await sessionManager.stopSession(id: newSession.getSessionId())
+        return state
     }
 
     func execKeystrokes(_ keystrokes: [VimKeystroke]) async throws -> VimState {
