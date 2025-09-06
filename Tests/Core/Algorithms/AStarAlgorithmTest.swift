@@ -61,7 +61,7 @@ import Testing
 }
 
 @Test func testAStarAlgorithmSimpleTransformation() async throws {
-    let algorithm = AStarAlgorithm()
+    let algorithm = AStarAlgorithmConcurrent()
 
     /*
     Optimum keystrokes:
@@ -96,7 +96,35 @@ import Testing
         // Expected for complex transformations
         #expect(true)
     } catch SearchError.noPathFound {
-        // Also acceptable for this test scenario
+        print("No path found")
         #expect(true)
     }
+}
+
+@Test func complexTransformation() async throws {
+    let algorithm = AStarAlgorithmConcurrent()
+
+    let initialState = VimState(
+        buffer: ["app.config['CHALLENGE_FOLDER'] = SOLUTIONS_FOLDER", "app.config['SOLUTIONS_FOLDER'] = CHALLENGE_FOLDER"],
+        cursor: VimCursor(row: 0, col: 0),
+        mode: .normal
+    )
+
+    let targetState = VimState(
+        buffer: ["app.config['CHALLENGE_FOLDER'] = CHALLENGE_FOLDER", "app.config['SOLUTIONS_FOLDER'] = SOLUTIONS_FOLDER"],
+        cursor: VimCursor(row: 0, col: 0),
+        mode: .normal
+    )
+
+    let options = SearchOptions(
+        timeOut: 360.0,
+        verbose: true,
+        neighbors: AStarNeighbors(),
+        pruning: AStarPrunning(),
+        heuristic: AStarHeuristic()
+    )
+
+    let result = try await algorithm.search(from: initialState, to: targetState, options: options)
+    print("result: \(encodeKeystrokes(result))")
+    #expect(!result.isEmpty)
 }

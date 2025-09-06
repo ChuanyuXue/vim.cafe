@@ -28,7 +28,12 @@ actor AStarNodePool: NodePoolProtocol {
         heap.append(node)
         heapifyUp(heap.count - 1)
     }
-    
+
+    // Peek at the current minimum-priority node without removing it
+    func peek() -> (any NodeProtocol)? {
+        return heap.first
+    }
+
     func pop() -> (any NodeProtocol)? {
         guard !heap.isEmpty else { return nil }
         

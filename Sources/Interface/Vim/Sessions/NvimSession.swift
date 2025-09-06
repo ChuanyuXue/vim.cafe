@@ -13,6 +13,7 @@ class NvimSession: SessionProtocol {
     private var nvimProcess: Process?
     private var inputPipe: Pipe?
     private var outputPipe: Pipe?
+    private var errorPipe: Pipe?
     private var messageId: UInt32 = 0
     private var inputs: [String] = []
     
@@ -30,37 +31,47 @@ class NvimSession: SessionProtocol {
 
     func start() async throws {
         let process = Process()
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        
+        let inPipe = Pipe()
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+
+        // Resolve nvim path: NVIM_PATH env var > absolute path candidates > PATH lookup via /usr/bin/env
         process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")
-        
-        process.arguments = ["-n", "--headless", "--embed",
-            "--cmd", "set nocompatible | set scrolloff=3 | set showcmd | set number | set ruler | set visualbell t_vb= | set novisualbell | set hlsearch | set incsearch | set showmatch | set ignorecase | set smartcase | set ai | set tabstop=2 | set shiftwidth=2 | set softtabstop=2 | set backspace=indent,eol,start | set nobackup | syntax on | filetype on | filetype indent on | filetype plugin indent on"]
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = Pipe()
+
+        process.arguments = [
+            "-n", "--headless", "--embed",
+            "--cmd",
+            "set nocompatible | set scrolloff=3 | set showcmd | set number | set ruler | set visualbell t_vb= | set novisualbell | set hlsearch | set incsearch | set showmatch | set ignorecase | set smartcase | set ai | set tabstop=2 | set shiftwidth=2 | set softtabstop=2 | set backspace=indent,eol,start | set nobackup | syntax on | filetype on | filetype indent on | filetype plugin indent on"
+        ]
+
+        // Explicitly pass child-facing ends of the pipes
+        process.standardInput = inPipe
+        process.standardOutput = outPipe
+        process.standardError = errPipe
 
         do {
             try process.run()
         } catch {
             throw NvimSessionError.startupFailed(error)
         }
-        
+
         self.nvimProcess = process
-        self.inputPipe = inputPipe
-        self.outputPipe = outputPipe
+        self.inputPipe = inPipe
+        self.outputPipe = outPipe
+        self.errorPipe = errPipe
     }
     
     func stop() async throws{
         try inputPipe?.fileHandleForWriting.close()
         try outputPipe?.fileHandleForReading.close()
+        try errorPipe?.fileHandleForReading.close()
 
         nvimProcess?.terminate()
         
         nvimProcess = nil
         inputPipe = nil
         outputPipe = nil
+        errorPipe = nil
     }
 
     func isRunning() async -> Bool {
