@@ -46,11 +46,6 @@ class AStarAlgorithm: AlgorithmProtocol {
             await withTaskGroup(of: AStarNode?.self) { group in
                 for keystroke in nextKeystrokes {
                     group.addTask {
-                        let elapsed = Date().timeIntervalSince(startTime)
-                        if elapsed > options.timeOut {
-                            return nil
-                        }
-                        
                         let newPath = currentNode.keystrokePath + [keystroke]
                         let gCost = (currentNode as! AStarNode).cost + 1.0
 
