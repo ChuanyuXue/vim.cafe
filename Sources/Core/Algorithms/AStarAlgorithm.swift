@@ -40,6 +40,8 @@ class AStarAlgorithm: AlgorithmProtocol {
             }
             
             let nextKeystrokes = options.neighbors.getNextKeystrokes(state: currentNode.state, target: targetState)
+            // Snapshot current incumbent bound as Double for pruning-by-bound
+            let incumbentBound: Double? = minPath.isEmpty ? nil : Double(minPath.count)
             
             await withTaskGroup(of: AStarNode?.self) { group in
                 for keystroke in nextKeystrokes {
@@ -50,17 +52,23 @@ class AStarAlgorithm: AlgorithmProtocol {
                         }
                         
                         let newPath = currentNode.keystrokePath + [keystroke]
-                        
+                        let gCost = (currentNode as! AStarNode).cost + 1.0
+
+                        // 1) Bound pruning (early, before expensive state reconstruction)
+                        if options.pruning.shouldPruneByBound(gCost: gCost, incumbentBound: incumbentBound) {
+                            return nil
+                        }
+
                         // Note: Reconstruct by keystroke path is NECESSARY, because the VimState CANNOT capture the hidden state (e.g., registers)
                         guard let newState = try? await vimEngine.execKeystrokes(newPath) else {
                             return nil
                         }
 
-                        if options.pruning.shouldPrune(state: newState, target: targetState, pool: nodePool) {
+                        // 2) Domain-specific pruning
+                        if options.pruning.shouldPruneByDomain(state: newState, target: targetState) {
                             return nil
                         }
-                        
-                        let gCost = (currentNode as! AStarNode).cost + 1.0
+
                         let hCost = options.heuristic.estimate(state: newState, target: targetState)
                         
                         return AStarNode(
