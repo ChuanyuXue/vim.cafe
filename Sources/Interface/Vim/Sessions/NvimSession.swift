@@ -123,6 +123,53 @@ class NvimSession: SessionProtocol {
             return (mode: mode, blocking: blocking)
         }
     }
+
+    // Batched state retrieval that NEVER calls buffer/cursor if mode is blocking (to avoid hangs).
+    func getStateBundle(buffer: Int = 1, window: Int = 0) async throws -> (mode: String, blocking: Bool, buffer: [String], cursor: (row: Int, col: Int)) {
+        // First, fetch mode only. If blocking, return early to avoid hanging on other calls.
+        let (mode, isBlocking) = try await getMode()
+        if isBlocking {
+            return (mode: mode, blocking: true, buffer: [], cursor: (row: 0, col: 0))
+        }
+
+        // Prepare atomic calls (excluding mode since we already have it): [ [method, args], ... ]
+        let calls: [[Any]] = [
+            ["nvim_buf_get_lines", [buffer, 0, -1, false]],
+            ["nvim_win_get_cursor", [window]]
+        ]
+
+        let (lines, cursor): ([String], (row: Int, col: Int)) = try await callRPC(method: "nvim_call_atomic", params: [calls]) { response in
+            guard response.count >= 4, let atomicResult = response[3] as? [Any], atomicResult.count >= 2 else {
+                throw NvimSessionError.invalidResponse("Invalid atomic response envelope")
+            }
+
+            // atomicResult = [results, err]
+            let results = atomicResult[0]
+            let errorPart = atomicResult[1]
+
+            if !(errorPart is NSNull) {
+                throw NvimSessionError.communicationFailed("nvim_call_atomic returned error: \(errorPart)")
+            }
+
+            guard let resultArray = results as? [Any], resultArray.count >= 2 else {
+                throw NvimSessionError.invalidResponse("Atomic results malformed")
+            }
+
+            // Extract buffer lines
+            guard let lines = resultArray[0] as? [String] else {
+                throw NvimSessionError.invalidResponse("Missing buffer lines from atomic results")
+            }
+            // Extract cursor: [row, col] (1-based row in Neovim)
+            guard let cursorArray = resultArray[1] as? [Int], cursorArray.count >= 2 else {
+                throw NvimSessionError.invalidResponse("Missing cursor from atomic results")
+            }
+            let row0 = max(0, cursorArray[0] - 1)
+            let col0 = cursorArray[1]
+            return (lines, (row: row0, col: col0))
+        }
+
+        return (mode: mode, blocking: false, buffer: lines, cursor: cursor)
+    }
     
     private func nextMessageId() -> UInt32 {
         messageId += 1
@@ -247,4 +294,3 @@ enum NvimSessionError: Error {
     case invalidResponse(String)
     case notRunning
 }
-

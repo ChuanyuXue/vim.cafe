@@ -74,15 +74,20 @@ class VimEngine {
         guard await session.isRunning() else { return nil }
         
         do {
-            let modeInfo = try await session.getMode()
-            
-            guard !modeInfo.blocking else { return nil }
+            // Use batched bundle to minimize round-trips
+            let bundle = try await session.getStateBundle(buffer: 1, window: 0)
 
-            let vimMode = try await getMode(session: session)
-            let buffer = try await session.getBufferLines(buffer: 1, start: 0, end: -1)
-            let cursor = try await session.getCursorPosition(window: 0)
+            // If Neovim is in a blocking state (e.g., command line prompt), skip
+            guard !bundle.blocking else { return nil }
+
+            // Map raw mode to VimMode
+            let vimMode = VimMode(rawValue: bundle.mode)!
             
-            return VimState(buffer: buffer, cursor: VimCursor(row: cursor.row, col: cursor.col), mode: vimMode)
+            return VimState(
+                buffer: bundle.buffer,
+                cursor: VimCursor(row: bundle.cursor.row, col: bundle.cursor.col),
+                mode: vimMode
+            )
         } catch {
             // If RPC calls fail (likely due to process termination), return nil
             return nil

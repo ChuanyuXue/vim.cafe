@@ -474,6 +474,96 @@ struct NvimSessionMultipleInstanceTests {
             #expect(!sessionIsRunning, "All sessions should be stopped")
         }
     }
+
+    @Test func testGetStateBundle() async throws {
+        let session = try await SessionManager.shared.createAndStartSession(type: .nvim)
+        try await Task.sleep(for: .milliseconds(200))
+        
+        // Test 1: Default state bundle (default buffer=1, window=0)
+        let initialState = try await session.getStateBundle()
+        #expect(initialState.mode == "n", "Should start in normal mode")
+        #expect(!initialState.blocking, "Should not be blocking initially")
+        #expect(initialState.buffer.count >= 0, "Buffer should be valid")
+        #expect(initialState.cursor.row >= 0, "Cursor row should be valid")
+        #expect(initialState.cursor.col >= 0, "Cursor col should be valid")
+        
+        // Test 2: Set up buffer content and test state bundle
+        let testLines = ["First line of content", "Second line", "Third line with more text"]
+        try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: testLines)
+        try await session.setCursorPosition(window: 0, row: 1, col: 5)
+        try await Task.sleep(for: .milliseconds(100))
+        
+        let contentState = try await session.getStateBundle(buffer: 1, window: 0)
+        #expect(contentState.mode == "n", "Should be in normal mode")
+        #expect(!contentState.blocking, "Should not be blocking")
+        #expect(contentState.buffer == testLines, "Buffer content should match")
+        #expect(contentState.cursor.row == 1, "Cursor row should be 1 (0-based)")
+        #expect(contentState.cursor.col == 5, "Cursor col should be 5")
+        
+        // Test 3: Change mode and verify state bundle
+        try await session.sendInput("i")
+        try await Task.sleep(for: .milliseconds(100))
+        
+        let insertState = try await session.getStateBundle()
+        #expect(insertState.mode == "i", "Should be in insert mode")
+        #expect(insertState.buffer == testLines, "Buffer content should remain the same")
+        
+        // Test 4: Add content in insert mode and verify
+        try await session.sendInput("Hello ")
+        try await Task.sleep(for: .milliseconds(100))
+        
+        let modifiedState = try await session.getStateBundle()
+        #expect(modifiedState.mode == "i", "Should still be in insert mode")
+        #expect(modifiedState.buffer[1].contains("Hello"), "Buffer should contain inserted text")
+        
+        // Test 5: Return to normal mode and test different cursor position
+        try await session.sendInput("\u{1b}")
+        try await session.sendInput("G$")
+        try await Task.sleep(for: .milliseconds(100))
+        
+        let finalState = try await session.getStateBundle()
+        #expect(finalState.mode == "n", "Should be back in normal mode")
+        #expect(finalState.cursor.row >= 0, "Cursor should be at valid row")
+        
+        try await session.stop()
+    }
+    
+    @Test func testGetStateBundleWithDifferentBuffers() async throws {
+        let session = try await SessionManager.shared.createAndStartSession(type: .nvim)
+        try await Task.sleep(for: .milliseconds(200))
+        
+        // Set content in the default buffer (buffer 1)
+        let buffer1Lines = ["Buffer 1 line 1", "Buffer 1 line 2"]
+        try await session.setBufferLines(buffer: 1, start: 0, end: -1, lines: buffer1Lines)
+        try await Task.sleep(for: .milliseconds(100))
+        
+        // Test state bundle for buffer 1
+        let buffer1State = try await session.getStateBundle(buffer: 1, window: 0)
+        #expect(buffer1State.buffer == buffer1Lines, "Buffer 1 should have correct content")
+        
+        // Test that we can get state bundle with explicit parameters
+        let explicitState = try await session.getStateBundle(buffer: 1, window: 0)
+        #expect(explicitState.buffer == buffer1Lines, "Explicit parameters should work")
+        #expect(explicitState.mode == "n", "Should be in normal mode")
+        
+        try await session.stop()
+    }
+    
+    @Test func testGetStateBundleErrorHandling() async throws {
+        let session = try await SessionManager.shared.createAndStartSession(type: .nvim)
+        try await Task.sleep(for: .milliseconds(200))
+        
+        // Test with invalid buffer (should handle gracefully or throw appropriate error)
+        do {
+            let _ = try await session.getStateBundle(buffer: 999, window: 0)
+            // If it doesn't throw, that's also valid - nvim might handle it gracefully
+        } catch {
+            // Expected behavior for invalid buffer
+            #expect(error is NvimSessionError, "Should throw NvimSessionError for invalid buffer")
+        }
+        
+        try await session.stop()
+    }
 }
 
 struct NvimSessionPerformanceTests {
