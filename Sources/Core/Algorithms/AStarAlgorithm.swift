@@ -54,10 +54,16 @@ class AStarAlgorithm: AlgorithmProtocol {
                             return nil
                         }
 
-                        // Note: Reconstruct by keystroke path is NECESSARY, because the VimState CANNOT capture the hidden state (e.g., registers)
-                        guard let newState = try? await vimEngine.execKeystrokes(newPath) else {
-                            return nil
+                        // Reconstruct by keystroke path using a pooled session to overlap I/O.
+                        // KISS retry: try twice before giving up (handles transient engine hiccups)
+                        var newStateOpt: VimState? = nil
+                        for _ in 0..<2 {
+                            if let s: VimState = try? await vimEngine.execKeystrokes(newPath) {
+                                newStateOpt = s
+                                break
+                            }
                         }
+                        guard let newState = newStateOpt else { return nil }
 
                         // 2) Domain-specific pruning
                         if options.pruning.shouldPruneByDomain(state: newState, target: targetState) {
