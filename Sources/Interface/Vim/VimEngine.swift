@@ -18,6 +18,8 @@ class VimEngine {
         self.sessionManager = sessionManager
         self.defaultSessionType = defaultSessionType
         self.lru = VimStateLRU(capacity: 1000)
+
+        signal(SIGPIPE, SIG_IGN)
     }
     
     func execKeystrokes(session: SessionProtocol, keystrokes: [VimKeystroke]) async throws -> VimState {
@@ -34,7 +36,7 @@ class VimEngine {
         let inputs = try await session.getInputs()
 
         // 1) Keystrokes state is in cache
-        if let state = await lru.get(keystrokes) {
+        if inputs == [], let state = await lru.get(keystrokes) {
             return state
         }
 
@@ -46,7 +48,7 @@ class VimEngine {
         }
 
         // 3) Blocking, find the prefix in the cache
-        if let state = await lru.get(Array(keystrokes.dropLast())) {
+        if inputs == [], let state = await lru.get(Array(keystrokes.dropLast())) {
             // Update cache keystrokes == prefix when blocking
             await lru.set(keystrokes, state)
             return state
@@ -62,7 +64,6 @@ class VimEngine {
 
     func execKeystrokes(_ keystrokes: [VimKeystroke]) async throws -> VimState {
         let session = try await sessionManager.createAndStartSession(type: defaultSessionType, defaultState: defaultState)
-
         let result = try await execKeystrokes(session: session, keystrokes: keystrokes)
         try await session.stop()
         return result
@@ -90,15 +91,12 @@ class VimEngine {
     
     func getMode(session: SessionProtocol) async throws -> VimMode {
         let modeInfo = try await session.getMode()
-        guard let vimMode = VimMode(rawValue: modeInfo.mode) else {
-            throw VimEngineError.invalidResponse("Unknown mode: \(modeInfo.mode)")
-        }
+        let vimMode = VimMode(rawValue: modeInfo.mode)!
         return vimMode
     }
 }
 
 enum VimEngineError: Error {
     case nvimStartupFailed(Error)
-    case invalidResponse(String)
     case nvimNotRunning
 }

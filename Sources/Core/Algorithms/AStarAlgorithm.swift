@@ -18,12 +18,13 @@ class AStarAlgorithm: AlgorithmProtocol {
         let vimEngine = VimEngine(defaultState: initialState)
         
         var iterationCount = 0
+        var minPath = [VimKeystroke]()
         
         while let currentNode = await nodePool.pop() {
             iterationCount += 1
             let elapsed = Date().timeIntervalSince(startTime)
             if elapsed > options.timeOut {
-                throw SearchError.timeout
+                return minPath
             }
             
             if options.verbose {
@@ -33,8 +34,9 @@ class AStarAlgorithm: AlgorithmProtocol {
                 }
             }
             
-            if currentNode.state == targetState {
-                return currentNode.keystrokePath
+            if currentNode.state.buffer == targetState.buffer && currentNode.state.mode == targetState.mode {
+                minPath = currentNode.keystrokePath
+                continue
             }
             
             let nextKeystrokes = options.neighbors.getNextKeystrokes(state: currentNode.state, target: targetState)
@@ -79,7 +81,7 @@ class AStarAlgorithm: AlgorithmProtocol {
             }
         }
         
-        throw SearchError.noPathFound
+        return minPath
     }
     
     private func printSearchTable(currentNode: any NodeProtocol, nodePool: AStarNodePool, k: Int, avgSpeed: Double, iterationCount: Int) async {

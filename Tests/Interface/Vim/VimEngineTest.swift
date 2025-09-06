@@ -354,6 +354,16 @@ struct VimEngineEdgeCaseTests {
         
         try await session.stop()
     }
+
+    @Test func testCopyPaste() async throws {
+        let defaultState = VimState(buffer: ["abc123abc123"], cursor: VimCursor(row: 0, col: 0), mode: .normal)
+        let engine = VimEngine(defaultState: defaultState, defaultSessionType: sessionType)
+
+        try await Task.sleep(for: .milliseconds(200))
+        let state = try await engine.execKeystrokes(decodeKeystrokes("dt1$p"))
+        #expect(state.buffer == ["123abc123abc"], "Should contain pasted text")
+        #expect(state.mode == VimMode.normal, "Should be in normal mode")
+    }
 }
 
 // MARK: - Part 5: Normal Mode Motion Tests

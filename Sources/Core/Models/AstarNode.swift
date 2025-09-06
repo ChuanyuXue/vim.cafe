@@ -26,12 +26,12 @@ struct AStarNode: NodeProtocol {
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(state)
+        hasher.combine(keystrokePath)
     }
 
     // TODO: This needs to be reconsidered.
     // Because hidden states are not considered.
     static func == (lhs: AStarNode, rhs: AStarNode) -> Bool {
-        return lhs.state == rhs.state
+        return lhs.keystrokePath == rhs.keystrokePath
     }
 }

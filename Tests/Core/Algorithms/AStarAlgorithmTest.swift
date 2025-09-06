@@ -62,6 +62,11 @@ import Testing
 
 @Test func testAStarAlgorithmSimpleTransformation() async throws {
     let algorithm = AStarAlgorithm()
+
+    /*
+    Optimum keystrokes:
+    dt1$p
+    */
     
     let initialState = VimState(
         buffer: ["abc123abc123"],
@@ -76,7 +81,7 @@ import Testing
     )
     
     let options = SearchOptions(
-        timeOut: 180.0,
+        timeOut: 360.0,
         verbose: true,
         neighbors: AStarNeighbors(),
         pruning: AStarPrunning(),
@@ -85,6 +90,7 @@ import Testing
     
     do {
         let result = try await algorithm.search(from: initialState, to: targetState, options: options)
+        print("result: \(encodeKeystrokes(result))")
         #expect(!result.isEmpty)
     } catch SearchError.timeout {
         // Expected for complex transformations

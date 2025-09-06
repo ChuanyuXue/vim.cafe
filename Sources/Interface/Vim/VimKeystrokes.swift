@@ -89,10 +89,10 @@ func encodeKeystrokes(_ keystrokes: [VimKeystroke]) -> String {
 }
 
 func decodeKeystrokes(_ keystrokes: [String]) -> [VimKeystroke] {
-    return keystrokes.flatMap { decodeKeystrokes(from: $0) }
+    return keystrokes.flatMap { decodeKeystrokes($0) }
 }
 
-func decodeKeystrokes(from input: String) -> [VimKeystroke] {
+func decodeKeystrokes(_ input: String) -> [VimKeystroke] {
     var result: [VimKeystroke] = []
     var index = input.startIndex
     
